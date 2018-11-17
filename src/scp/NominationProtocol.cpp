@@ -606,4 +606,4 @@ NominationProtocol::getCurrentState() const
     }
     return res;
 }
-}
+} // namespace stellar
