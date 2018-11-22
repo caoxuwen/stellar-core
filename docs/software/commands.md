@@ -34,9 +34,9 @@ forcescp doesn't change the requirements for quorum so although this node will e
 * **--metric METRIC**: Report metric METRIC on exit. Used for gathering a metric cumulatively during a test run.
 * **--newdb**: Clears the local database and resets it to the genesis ledger. If you connect to the network after that it will catch up from scratch. 
 * **--newhist ARCH**:  Initialize the named history archive ARCH. ARCH should be one of the history archives you have specified in the stellar-core.cfg. This will write a `.well-known/stellar-history.json` file in the archive root.
-* **--printtxn FILE**:  Pretty-print a binary file containing a
-  `TransactionEnvelope`.  If FILE is "-", the transaction is read from
+* **--printxdr FILE**:  Pretty-print a binary file containing an XDR object. If FILE is "-", the XDR object is read from
   standard input.
+* **--filetype [auto|ledgerheader|meta|result|resultpair|tx|txfee]**: toggle for type used for printxdr (default: auto).
 * **--signtxn FILE**:  Add a digital signature to a transaction
   envelope stored in binary format in FILE, and send the result to
   standard output (which should be redirected to a file or piped
@@ -145,7 +145,7 @@ debugging purpose).
  gets the cursor identified by `ID`. If ID is not defined then all cursors will be returned.
 
 * **scp**
-  `/scp?[limit=n]
+  `/scp?[limit=n]`<br>
   Returns a JSON object with the internal state of the SCP engine for the last n (default 2) ledgers.
 
 * **tx**
@@ -166,7 +166,9 @@ debugging purpose).
   * `/upgrades?mode=clear`<br>
   clears any upgrade settings<br>
   * `/upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsize=NUM]&[protocolversion=NUM]`<br>
-  upgradetime is a required date (UTC) in the form 1970-01-01T00:00:00Z.<br>
+    * upgradetime is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
+        It is the time the upgrade will be scheduled for. If it is in the past,
+        the upgrade will occur immediately.<br>
     * fee (uint32) This is what you would prefer the base fee to be. It is
         in stroops<br>
     * basereserve (uint32) This is what you would prefer the base reserve 
@@ -184,7 +186,7 @@ debugging purpose).
 
 ### The following HTTP commands are exposed on test instances
 * **generateload**
-  `/generateload[?accounts=N&&offset=K&txs=M&txrate=(R|auto)&batchsize=L]`<br>
+  `/generateload[?mode=(create|pay)&accounts=N&offset=K&txs=M&txrate=(R|auto)&batchsize=L]`<br>
   Artificially generate load for testing; must be used with `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
   Depending on the mode, either creates new accounts or generates payments on
   accounts specified (where number of accounts can be offset).

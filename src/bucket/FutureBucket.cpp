@@ -12,6 +12,7 @@
 #include "bucket/FutureBucket.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
+#include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 
 #include <chrono>
@@ -210,7 +211,13 @@ FutureBucket::resolve()
     checkState();
     assert(isLive());
     clearInputs();
-    std::shared_ptr<Bucket> bucket = mOutputBucket.get();
+    std::shared_ptr<Bucket> bucket;
+
+    {
+        auto timer = LogSlowExecution("Resolving bucket");
+        bucket = mOutputBucket.get();
+    }
+
     if (mOutputBucketHash.empty())
     {
         mOutputBucketHash = binToHex(bucket->getHash());
@@ -283,7 +290,7 @@ FutureBucket::startMerge(Application& app, bool keepDeadEntries)
         });
 
     mOutputBucket = task->get_future().share();
-    app.getWorkerIOService().post(bind(&task_t::operator(), task));
+    app.postOnBackgroundThread(bind(&task_t::operator(), task));
     checkState();
 }
 

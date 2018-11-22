@@ -11,7 +11,6 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
-#include "util/types.h"
 #include "xdrpp/marshal.h"
 #include <ctime>
 #include <functional>
@@ -328,7 +327,12 @@ Slot::getJsonInfo()
 Json::Value
 Slot::getJsonQuorumInfo(NodeID const& id, bool summary)
 {
-    return mBallotProtocol.getJsonQuorumInfo(id, summary);
+    Json::Value ret = mBallotProtocol.getJsonQuorumInfo(id, summary);
+    if (getLocalNode()->isValidator())
+    {
+        ret["validated"] = isFullyValidated();
+    }
+    return ret;
 }
 
 bool

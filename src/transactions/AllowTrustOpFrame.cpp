@@ -5,10 +5,14 @@
 #include "transactions/AllowTrustOpFrame.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
+#include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "transactions/TransactionUtils.h"
 
 namespace stellar
 {
@@ -26,15 +30,13 @@ AllowTrustOpFrame::getThresholdLevel() const
 }
 
 bool
-AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
-                           LedgerManager& ledgerManager)
+AllowTrustOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 {
-    if (ledgerManager.getCurrentLedgerVersion() > 2)
+    if (ls.loadHeader().current().ledgerVersion > 2)
     {
         if (mAllowTrust.trustor == getSourceID())
-        { // since version 3 it is not
-            // allowed to use ALLOW_TRUST on
-            // self
+        {
+            // since version 3 it is not allowed to use ALLOW_TRUST on self
             app.getMetrics()
                 .NewMeter({"op-allow-trust", "failure", "trust-self"},
                           "operation")
@@ -44,25 +46,42 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
     }
 
-    if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
-    { // this account doesn't require authorization to
-        // hold credit
-        app.getMetrics()
-            .NewMeter({"op-allow-trust", "failure", "not-required"},
-                      "operation")
-            .Mark();
-        innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
-        return false;
+    {
+        LedgerState lsSource(ls); // lsSource will be rolled back
+        auto header = lsSource.loadHeader();
+        auto sourceAccountEntry = loadSourceAccount(lsSource, header);
+        auto const& sourceAccount = sourceAccountEntry.current().data.account();
+        if (!(sourceAccount.flags & AUTH_REQUIRED_FLAG))
+        { // this account doesn't require authorization to
+            // hold credit
+            app.getMetrics()
+                .NewMeter({"op-allow-trust", "failure", "not-required"},
+                          "operation")
+                .Mark();
+            innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
+            return false;
+        }
+
+        if (!(sourceAccount.flags & AUTH_REVOCABLE_FLAG) &&
+            !mAllowTrust.authorize)
+        {
+            app.getMetrics()
+                .NewMeter({"op-allow-trust", "failure", "cant-revoke"},
+                          "operation")
+                .Mark();
+            innerResult().code(ALLOW_TRUST_CANT_REVOKE);
+            return false;
+        }
     }
 
-    if (!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
-        !mAllowTrust.authorize)
+    // Only possible in ledger version 1 and 2
+    if (mAllowTrust.trustor == getSourceID())
     {
         app.getMetrics()
-            .NewMeter({"op-allow-trust", "failure", "cant-revoke"}, "operation")
+            .NewMeter({"op-allow-trust", "success", "apply"}, "operation")
             .Mark();
-        innerResult().code(ALLOW_TRUST_CANT_REVOKE);
-        return false;
+        innerResult().code(ALLOW_TRUST_SUCCESS);
+        return true;
     }
 
     Asset ci;
@@ -78,34 +97,63 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         ci.alphaNum12().issuer = getSourceID();
     }
 
-    Database& db = ledgerManager.getDatabase();
-    TrustFrame::pointer trustLine;
-    trustLine = TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, db, &delta);
+    LedgerKey key(TRUSTLINE);
+    key.trustLine().accountID = mAllowTrust.trustor;
+    key.trustLine().asset = ci;
 
-    if (!trustLine)
+    bool didRevokeAuth = false;
     {
-        app.getMetrics()
-            .NewMeter({"op-allow-trust", "failure", "no-trust-line"},
-                      "operation")
-            .Mark();
-        innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
-        return false;
+        auto trust = ls.load(key);
+        if (!trust)
+        {
+            app.getMetrics()
+                .NewMeter({"op-allow-trust", "failure", "no-trust-line"},
+                          "operation")
+                .Mark();
+            innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
+            return false;
+        }
+        didRevokeAuth = isAuthorized(trust) && !mAllowTrust.authorize;
     }
+
+    auto header = ls.loadHeader();
+    if (header.current().ledgerVersion >= 10 && didRevokeAuth)
+    {
+        // Delete all offers owned by the trustor that are either buying or
+        // selling the asset which had authorization revoked.
+        auto offers = ls.loadOffersByAccountAndAsset(mAllowTrust.trustor, ci);
+        for (auto& offer : offers)
+        {
+            auto const& oe = offer.current().data.offer();
+            if (!(oe.sellerID == mAllowTrust.trustor))
+            {
+                throw std::runtime_error("Offer not owned by expected account");
+            }
+            else if (!(oe.buying == ci || oe.selling == ci))
+            {
+                throw std::runtime_error(
+                    "Offer not buying or selling expected asset");
+            }
+
+            releaseLiabilities(ls, header, offer);
+            auto trustAcc = stellar::loadAccount(ls, mAllowTrust.trustor);
+            addNumEntries(header, trustAcc, -1);
+            offer.erase();
+        }
+    }
+
+    auto trustLineEntry = ls.load(key);
+    setAuthorized(trustLineEntry, mAllowTrust.authorize);
 
     app.getMetrics()
         .NewMeter({"op-allow-trust", "success", "apply"}, "operation")
         .Mark();
     innerResult().code(ALLOW_TRUST_SUCCESS);
-
-    trustLine->setAuthorized(mAllowTrust.authorize);
-
-    trustLine->storeChange(delta, db);
-
     return true;
 }
 
 bool
-AllowTrustOpFrame::doCheckValid(Application& app)
+AllowTrustOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {

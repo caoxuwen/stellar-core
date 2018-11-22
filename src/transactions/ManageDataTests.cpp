@@ -7,6 +7,7 @@
 #include "main/Application.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -33,7 +34,8 @@ TEST_CASE("manage data", "[tx][managedata]")
     // set up world
     auto root = TestAccount::createRoot(*app);
 
-    const int64_t minBalance = app->getLedgerManager().getMinBalance(3) - 100;
+    const int64_t minBalance =
+        app->getLedgerManager().getLastMinBalance(3) - 100;
 
     auto gateway = root.create("gw", minBalance);
 
@@ -116,4 +118,44 @@ TEST_CASE("manage data", "[tx][managedata]")
         // fail to remove data entry that isn't present
         REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr), ex_txINTERNAL_ERROR);
     });
+
+    SECTION("create data with native selling liabilities")
+    {
+        auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
+        auto txfee = app->getLedgerManager().getLastTxFee();
+        auto const native = makeNativeAsset();
+        auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+        TestMarket market(*app);
+
+        auto cur1 = acc1.asset("CUR1");
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(acc1, {native, cur1, Price{1, 1}, 500});
+        });
+
+        for_versions({2}, *app, [&] { acc1.manageData(t1, &value); });
+        for_versions(4, 9, *app, [&] { acc1.manageData(t1, &value); });
+        for_versions_from(10, *app, [&] {
+            REQUIRE_THROWS_AS(acc1.manageData(t1, &value),
+                              ex_MANAGE_DATA_LOW_RESERVE);
+            root.pay(acc1, txfee + 1);
+            acc1.manageData(t1, &value);
+        });
+    }
+
+    SECTION("create data with native buying liabilities")
+    {
+        auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
+        auto txfee = app->getLedgerManager().getLastTxFee();
+        auto const native = makeNativeAsset();
+        auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+        TestMarket market(*app);
+
+        auto cur1 = acc1.asset("CUR1");
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(acc1, {cur1, native, Price{1, 1}, 500});
+        });
+
+        for_versions({2}, *app, [&] { acc1.manageData(t1, &value); });
+        for_versions_from(4, *app, [&] { acc1.manageData(t1, &value); });
+    }
 }
