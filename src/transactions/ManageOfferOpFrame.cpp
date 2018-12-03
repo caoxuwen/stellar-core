@@ -34,6 +34,7 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
     , mManageOffer(mOperation.body.manageOfferOp())
 {
     mPassive = false;
+    mMarginTrade = false;
 }
 
 // make sure these issuers exist and you can hold the ask asset
@@ -73,7 +74,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_SELL_NO_TRUST);
             return false;
         }
-        if (sheepLineA.getBalance() == 0)
+        if (sheepLineA.getBalance() == 0 && !mMarginTrade)
         {
             metrics
                 .NewMeter({"op-manage-offer", "invalid", "underfunded"},
@@ -228,6 +229,7 @@ bool
 ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
 {
     LedgerState ls(lsOuter);
+
     if (!checkOfferValid(app.getMetrics(), ls))
     {
         return false;
@@ -269,6 +271,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
         auto flags = sellSheepOffer.current().data.offer().flags;
         newOffer.data.offer() = buildOffer(getSourceID(), mManageOffer, flags);
         mPassive = flags & PASSIVE_FLAG;
+        mMarginTrade = flags & MARGIN_FLAG;
 
         // WARNING: sellSheepOffer is deleted but sourceAccount is not updated
         // to reflect the change in numSubEntries at this point. However, we
@@ -279,8 +282,9 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
     else
     { // creating a new Offer
         creatingNewOffer = true;
-        newOffer.data.offer() = buildOffer(getSourceID(), mManageOffer,
-                                           mPassive ? PASSIVE_FLAG : 0);
+        newOffer.data.offer() = buildOffer(
+            getSourceID(), mManageOffer,
+            mMarginTrade ? MARGIN_FLAG : (mPassive ? PASSIVE_FLAG : 0));
     }
 
     innerResult().code(MANAGE_OFFER_SUCCESS);

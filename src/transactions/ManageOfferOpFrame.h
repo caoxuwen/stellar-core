@@ -36,6 +36,7 @@ class ManageOfferOpFrame : public OperationFrame
 
   protected:
     bool mPassive;
+    bool mMarginTrade;
 
   public:
     ManageOfferOpFrame(Operation const& op, OperationResult& res,

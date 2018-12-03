@@ -169,7 +169,8 @@ struct TrustLineEntry
 
     int64 limit;  // balance cannot be above this
     uint32 flags; // see TrustLineFlags
-
+    int64 debt;
+    
     // reserved for future use
     union switch (int v)
     {
@@ -194,11 +195,14 @@ struct TrustLineEntry
 enum OfferEntryFlags
 {
     // issuer has authorized account to perform transactions with its credit
-    PASSIVE_FLAG = 1
+    PASSIVE_FLAG = 0x1,
+
+    // flag to indicate whether margin trading
+    MARGIN_FLAG = 0x2
 };
 
 // Mask for OfferEntry flags
-const MASK_OFFERENTRY_FLAGS = 1;
+const MASK_OFFERENTRY_FLAGS = 0x3;
 
 /* OfferEntry
     An offer is the building block of the offer book, they are automatically

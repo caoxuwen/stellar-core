@@ -26,7 +26,8 @@ enum OperationType
     ACCOUNT_MERGE = 8,
     INFLATION = 9,
     MANAGE_DATA = 10,
-    BUMP_SEQUENCE = 11
+    BUMP_SEQUENCE = 11,
+    CREATE_MARGIN_OFFER = 101
 };
 
 /* CreateAccount
@@ -110,6 +111,21 @@ Result: CreatePassiveOfferResult
 
 */
 struct CreatePassiveOfferOp
+{
+    Asset selling; // A
+    Asset buying;  // B
+    int64 amount;  // amount taker gets. if set to 0, delete the offer
+    Price price;   // cost of A in terms of B
+};
+
+/* Creates an margin trade offer
+
+Threshold: med
+
+Result: CreateMarginOfferResult
+
+*/
+struct CreateMarginOfferOp
 {
     Asset selling; // A
     Asset buying;  // B
@@ -256,6 +272,8 @@ struct Operation
         ManageOfferOp manageOfferOp;
     case CREATE_PASSIVE_OFFER:
         CreatePassiveOfferOp createPassiveOfferOp;
+    case CREATE_MARGIN_OFFER:
+        CreateMarginOfferOp createMarginOfferOp;
     case SET_OPTIONS:
         SetOptionsOp setOptionsOp;
     case CHANGE_TRUST:
@@ -713,6 +731,8 @@ case opINNER:
         ManageOfferResult manageOfferResult;
     case CREATE_PASSIVE_OFFER:
         ManageOfferResult createPassiveOfferResult;
+    case CREATE_MARGIN_OFFER:
+        ManageOfferResult createMarginOfferResult;
     case SET_OPTIONS:
         SetOptionsResult setOptionsResult;
     case CHANGE_TRUST:

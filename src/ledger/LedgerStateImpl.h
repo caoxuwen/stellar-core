@@ -315,6 +315,9 @@ class LedgerStateRoot::Impl
                                                       int64_t minBalance) const;
     std::shared_ptr<LedgerEntry const>
     loadTrustLine(LedgerKey const& key) const;
+    
+    std::shared_ptr<LedgerEntry const>
+    loadDebtTrustLine(LedgerKey const& key) const;
 
     void storeAccount(EntryIterator const& iter);
     void storeData(EntryIterator const& iter);

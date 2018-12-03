@@ -414,6 +414,9 @@
     <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CreateMarginOfferOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\simulation\LoadGenerator.cpp">
       <Filter>simulation</Filter>
     </ClCompile>
@@ -1137,6 +1140,9 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\CreateMarginOfferOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\LoadGenerator.h">

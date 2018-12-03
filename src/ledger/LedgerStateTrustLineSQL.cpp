@@ -18,7 +18,7 @@ LedgerStateRoot::Impl::loadTrustLine(LedgerKey const& key) const
     auto const& asset = key.trustLine().asset;
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
-        throw std::runtime_error("XLM TrustLine?");
+        throw std::runtime_error("IONX TrustLine?");
     }
     else if (key.trustLine().accountID == getIssuer(asset))
     {
@@ -53,12 +53,62 @@ LedgerStateRoot::Impl::loadTrustLine(LedgerKey const& key) const
     st.exchange(soci::into(tl.limit));
     st.exchange(soci::into(tl.balance));
     st.exchange(soci::into(tl.flags));
+    st.exchange(soci::into(tl.debt));
     st.exchange(soci::into(le.lastModifiedLedgerSeq));
     st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
     st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
     st.exchange(soci::use(actIDStrKey));
     st.exchange(soci::use(issuerStr));
     st.exchange(soci::use(assetStr));
+    st.define_and_bind();
+    {
+        auto timer = mDatabase.getSelectTimer("trust");
+        st.execute(true);
+    }
+    if (!st.got_data())
+    {
+        return nullptr;
+    }
+
+    tl.accountID = key.trustLine().accountID;
+    tl.asset = key.trustLine().asset;
+
+    assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
+    if (buyingLiabilitiesInd == soci::i_ok)
+    {
+        tl.ext.v(1);
+        tl.ext.v1().liabilities = liabilities;
+    }
+
+    return std::make_shared<LedgerEntry>(std::move(le));
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerStateRoot::Impl::loadDebtTrustLine(LedgerKey const& key) const
+{
+    std::string actIDStrKey = KeyUtils::toStrKey(key.trustLine().accountID);
+
+    Liabilities liabilities;
+    soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+
+    LedgerEntry le;
+    le.data.type(TRUSTLINE);
+    TrustLineEntry& tl = le.data.trustLine();
+
+    auto prep = mDatabase.getPreparedStatement(
+        "SELECT tlimit, balance, flags, lastmodified, buyingliabilities, "
+        "sellingliabilities FROM trustlines "
+        "WHERE accountid= :id AND debt > 0");
+    auto& st = prep.statement();
+    st.exchange(soci::into(tl.limit));
+    st.exchange(soci::into(tl.balance));
+    st.exchange(soci::into(tl.flags));
+    st.exchange(soci::into(tl.debt));
+    st.exchange(soci::into(le.lastModifiedLedgerSeq));
+    st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
+    st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
+    st.exchange(soci::use(actIDStrKey));
+    
     st.define_and_bind();
     {
         auto timer = mDatabase.getSelectTimer("trust");
@@ -121,14 +171,15 @@ LedgerStateRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
         sql = "INSERT INTO trustlines "
               "(accountid, assettype, issuer, assetcode, balance, tlimit, "
               "flags, lastmodified, buyingliabilities, sellingliabilities) "
-              "VALUES (:id, :at, :iss, :ac, :b, :tl, :f, :lm, :bl, :sl)";
+              "VALUES (:id, :at, :iss, :ac, :b, :dt, :tl, :f, :lm, :bl, :sl)";
     }
     else
     {
-        sql = "UPDATE trustlines "
-              "SET balance=:b, tlimit=:tl, flags=:f, lastmodified=:lm, "
-              "buyingliabilities=:bl, sellingliabilities=:sl "
-              "WHERE accountid=:id AND issuer=:iss AND assetcode=:ac";
+        sql =
+            "UPDATE trustlines "
+            "SET balance=:b, tlimit=:tl, debt=:dt, flags=:f, lastmodified=:lm, "
+            "buyingliabilities=:bl, sellingliabilities=:sl "
+            "WHERE accountid=:id AND issuer=:iss AND assetcode=:ac";
     }
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
@@ -140,6 +191,7 @@ LedgerStateRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
     st.exchange(soci::use(issuerStr, "iss"));
     st.exchange(soci::use(assetCode, "ac"));
     st.exchange(soci::use(tl.balance, "b"));
+    st.exchange(soci::use(tl.debt, "dt"));
     st.exchange(soci::use(tl.limit, "tl"));
     st.exchange(soci::use(tl.flags, "f"));
     st.exchange(soci::use(entry.lastModifiedLedgerSeq, "lm"));
