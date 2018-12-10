@@ -389,6 +389,8 @@ class ConstTrustLineWrapper::NonIssuerImpl
     int64_t getAvailableBalance(LedgerStateHeader const& header) const override;
 
     int64_t getMaxAmountReceive(LedgerStateHeader const& header) const override;
+
+    Asset getAsset() const;
 };
 
 class ConstTrustLineWrapper::IssuerImpl
@@ -404,6 +406,8 @@ class ConstTrustLineWrapper::IssuerImpl
     int64_t getAvailableBalance(LedgerStateHeader const& header) const override;
 
     int64_t getMaxAmountReceive(LedgerStateHeader const& header) const override;
+
+    Asset getAsset() const;
 };
 
 // Implementation of ConstTrustLineWrapper ------------------------------------
@@ -443,6 +447,12 @@ ConstTrustLineWrapper::ConstTrustLineWrapper(ConstLedgerStateEntry&& entry)
 ConstTrustLineWrapper::operator bool() const
 {
     return (bool)mImpl && (bool)(*mImpl);
+}
+
+Asset
+ConstTrustLineWrapper::getAsset() const
+{
+    return getImpl()->getAsset();
 }
 
 int64_t
@@ -519,6 +529,12 @@ ConstTrustLineWrapper::NonIssuerImpl::getMaxAmountReceive(
     return stellar::getMaxAmountReceive(header, mEntry);
 }
 
+Asset
+ConstTrustLineWrapper::NonIssuerImpl::getAsset() const
+{
+    return mEntry.current().data.trustLine().asset;
+}
+
 // Implementation of ConstTrustLineWrapper::IssuerImpl ------------------------
 ConstTrustLineWrapper::IssuerImpl::operator bool() const
 {
@@ -549,5 +565,11 @@ ConstTrustLineWrapper::IssuerImpl::getMaxAmountReceive(
     LedgerStateHeader const& header) const
 {
     return INT64_MAX;
+}
+
+Asset
+ConstTrustLineWrapper::IssuerImpl::getAsset() const
+{
+    return Asset();
 }
 }

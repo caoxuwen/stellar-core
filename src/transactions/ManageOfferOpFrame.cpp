@@ -128,6 +128,40 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             return false;
         }
     }
+
+    if (mMarginTrade)
+    {
+        if (wheat.type() == ASSET_TYPE_NATIVE ||
+            sheep.type() == ASSET_TYPE_NATIVE)
+        {
+            //debt cannot be native assets
+            metrics
+                .NewMeter({"op-manage-offer", "invalid", "margin-not-asset"},
+                          "operation")
+                .Mark();
+            innerResult().code(MANAGE_OFFER_MARGIN_NOT_ASSET);
+            return false;
+        }
+
+        auto debt = loadTrustLineWithoutRecordIfNotNative(ls, getSourceID(),
+                                                          makeDebtAsset());
+
+        // if already margin trading, can only increase/decrease debt asset
+        if (debt && (compareAsset(sheep, debt.getAsset()) ||
+                     compareAsset(wheat, debt.getAsset())))
+        {
+            metrics
+                .NewMeter({"op-manage-offer", "invalid", "margin-not-valid"},
+                          "operation")
+                .Mark();
+            innerResult().code(MANAGE_OFFER_MARGIN_ASSET_INVALID);
+
+            return false;
+        }
+
+        // the other side should be fixed too?
+    }
+
     return true;
 }
 

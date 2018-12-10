@@ -510,7 +510,12 @@ enum ManageOfferResultCode
     // update errors
     MANAGE_OFFER_NOT_FOUND = -11, // offerID does not match an existing offer
 
-    MANAGE_OFFER_LOW_RESERVE = -12 // not enough funds to create a new Offer
+    MANAGE_OFFER_LOW_RESERVE = -12, // not enough funds to create a new Offer
+
+    // margin errors
+    MANAGE_OFFER_MARGIN_NOT_ASSET = -50, // margin cannot be native
+    MANAGE_OFFER_MARGIN_ASSET_INVALID = -51 // can only trade same debt
+
 };
 
 enum ManageOfferEffect

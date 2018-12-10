@@ -123,6 +123,8 @@ class ConstTrustLineWrapper
 
     explicit operator bool() const;
 
+    Asset getAsset() const;
+
     int64_t getBalance() const;
 
     bool isAuthorized() const;
@@ -153,6 +155,8 @@ class ConstTrustLineWrapper::AbstractImpl
 
     virtual bool isAuthorized() const = 0;
 
+    virtual Asset getAsset() const = 0;
+    
     virtual int64_t
     getAvailableBalance(LedgerStateHeader const& header) const = 0;
 

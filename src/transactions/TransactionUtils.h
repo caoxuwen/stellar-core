@@ -42,6 +42,10 @@ TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerState& ls,
 ConstTrustLineWrapper loadTrustLineWithoutRecordIfNotNative(
     AbstractLedgerState& ls, AccountID const& accountID, Asset const& asset);
 
+Asset makeDebtAsset();
+
+bool isDebtAsset(Asset asset);
+
 void acquireLiabilities(AbstractLedgerState& ls,
                         LedgerStateHeader const& header,
                         LedgerStateEntry const& offer);

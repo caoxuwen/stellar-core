@@ -11,6 +11,7 @@
 #include "transactions/OfferExchange.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "crypto/Hex.h"
 
 namespace stellar
 {
@@ -85,6 +86,25 @@ loadTrustLineWithoutRecordIfNotNative(AbstractLedgerState& ls,
         return {};
     }
     return ConstTrustLineWrapper(ls, accountID, asset);
+}
+
+Asset
+makeDebtAsset()
+{
+    Asset asset;
+    asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    PublicKey key;
+    key.type(PUBLIC_KEY_TYPE_ED25519);
+    key.ed25519() = hexToBin256("00000000000000000000000000000000"); //32 0's
+    asset.alphaNum4().issuer = key; // debt has a special public key of 0
+    strToAssetCode(asset.alphaNum4().assetCode, "DEBT");
+    return asset;
+}
+
+bool
+isDebtAsset(Asset asset)
+{
+    return false;
 }
 
 static void

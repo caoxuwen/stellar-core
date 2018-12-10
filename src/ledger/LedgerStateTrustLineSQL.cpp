@@ -8,6 +8,7 @@
 #include "ledger/LedgerStateImpl.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "transactions/TransactionUtils.h"
 
 namespace stellar
 {
@@ -25,6 +26,11 @@ LedgerStateRoot::Impl::loadTrustLine(LedgerKey const& key) const
         throw std::runtime_error("TrustLine accountID is issuer");
     }
 
+    if (isDebtAsset(key.trustLine().asset))
+    {
+        return loadDebtTrustLine(key);
+    }
+    
     std::string actIDStrKey = KeyUtils::toStrKey(key.trustLine().accountID);
     std::string issuerStr, assetStr;
     if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
@@ -108,7 +114,7 @@ LedgerStateRoot::Impl::loadDebtTrustLine(LedgerKey const& key) const
     st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
     st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
     st.exchange(soci::use(actIDStrKey));
-    
+
     st.define_and_bind();
     {
         auto timer = mDatabase.getSelectTimer("trust");
