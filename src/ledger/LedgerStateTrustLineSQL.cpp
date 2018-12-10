@@ -52,7 +52,7 @@ LedgerStateRoot::Impl::loadTrustLine(LedgerKey const& key) const
     TrustLineEntry& tl = le.data.trustLine();
 
     auto prep = mDatabase.getPreparedStatement(
-        "SELECT tlimit, balance, flags, lastmodified, buyingliabilities, "
+        "SELECT tlimit, balance, flags, debt, lastmodified, buyingliabilities, "
         "sellingliabilities FROM trustlines "
         "WHERE accountid= :id AND issuer= :issuer AND assetcode= :asset");
     auto& st = prep.statement();
@@ -175,7 +175,7 @@ LedgerStateRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
     if (isInsert)
     {
         sql = "INSERT INTO trustlines "
-              "(accountid, assettype, issuer, assetcode, balance, tlimit, "
+              "(accountid, assettype, issuer, assetcode, balance, debt, tlimit, "
               "flags, lastmodified, buyingliabilities, sellingliabilities) "
               "VALUES (:id, :at, :iss, :ac, :b, :dt, :tl, :f, :lm, :bl, :sl)";
     }
