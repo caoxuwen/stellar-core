@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/TransactionUtils.h"
+#include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerStateEntry.h"
@@ -11,7 +12,6 @@
 #include "transactions/OfferExchange.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
-#include "crypto/Hex.h"
 
 namespace stellar
 {
@@ -95,7 +95,8 @@ makeDebtAsset()
     asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     PublicKey key;
     key.type(PUBLIC_KEY_TYPE_ED25519);
-    key.ed25519() = hexToBin256("00000000000000000000000000000000"); //32 0's
+    key.ed25519() = hexToBin256("0000000000000000000000000000000000000000000000"
+                                "000000000000000000"); // 64 0's
     asset.alphaNum4().issuer = key; // debt has a special public key of 0
     strToAssetCode(asset.alphaNum4().assetCode, "DEBT");
     return asset;
