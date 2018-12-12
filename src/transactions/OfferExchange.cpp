@@ -800,7 +800,7 @@ static CrossOfferResult
 crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
            int64_t maxWheatReceived, int64_t& numWheatReceived,
            int64_t maxSheepSend, int64_t& numSheepSend,
-           std::vector<ClaimOfferAtom>& offerTrail)
+           std::vector<ClaimOfferAtom>& offerTrail, bool isMarginTrade)
 {
     assert(maxWheatReceived > 0);
     assert(maxSheepSend > 0);
@@ -874,6 +874,13 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
             {
                 return CrossOfferResult::eOfferCantConvert;
             }
+            if (isMarginTrade)
+            {
+                if (!sheepLineAccountB.addDebt(header, -numSheepSend))
+                {
+                    return CrossOfferResult::eOfferCantConvert;
+                }
+            }
         }
         lsInner.commit();
     }
@@ -902,6 +909,14 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
             {
                 return CrossOfferResult::eOfferCantConvert;
             }
+
+            if (isMarginTrade)
+            {
+                if (!wheatLineAccountB.addDebt(header, numWheatReceived))
+                {
+                    return CrossOfferResult::eOfferCantConvert;
+                }
+            }
         }
         lsInner.commit();
     }
@@ -916,7 +931,8 @@ static CrossOfferResult
 crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
               int64_t maxWheatReceived, int64_t& numWheatReceived,
               int64_t maxSheepSend, int64_t& numSheepSend, bool& wheatStays,
-              bool isPathPayment, std::vector<ClaimOfferAtom>& offerTrail)
+              bool isPathPayment, std::vector<ClaimOfferAtom>& offerTrail,
+              bool isMarginTrade)
 {
     assert(maxWheatReceived > 0);
     assert(maxSheepSend > 0);
@@ -981,6 +997,15 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
             {
                 throw std::runtime_error("overflowed sheep balance");
             }
+
+            if (isMarginTrade)
+            {
+                if (!sheepLineAccountB.addDebt(header, -numSheepSend))
+                {
+                    // this would indicate a bug in OfferExchange
+                    throw std::runtime_error("cannot modify debt");
+                }
+            }
         }
     }
 
@@ -998,6 +1023,15 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
             if (!wheatLineAccountB.addBalance(header, -numWheatReceived))
             {
                 throw std::runtime_error("overflowed wheat balance");
+            }
+
+            if (isMarginTrade)
+            {
+                if (!wheatLineAccountB.addDebt(header, numWheatReceived))
+                {
+                    // this would indicate a bug in OfferExchange
+                    throw std::runtime_error("cannot modify debt");
+                }
             }
         }
     }
@@ -1045,7 +1079,7 @@ ConvertResult
 convertWithOffers(
     AbstractLedgerState& lsOuter, Asset const& sheep, int64_t maxSheepSend,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
-    int64_t& wheatReceived, bool isPathPayment,
+    int64_t& wheatReceived, bool isPathPayment, bool isMarginTrade,
     std::function<OfferFilterResult(LedgerStateEntry const&)> filter,
     std::vector<ClaimOfferAtom>& offerTrail)
 {
@@ -1072,15 +1106,17 @@ convertWithOffers(
         if (ls.loadHeader().current().ledgerVersion >= 10)
         {
             bool wheatStays;
-            cor = crossOfferV10(ls, wheatOffer, maxWheatReceive,
-                                numWheatReceived, maxSheepSend, numSheepSend,
-                                wheatStays, isPathPayment, offerTrail);
+            cor =
+                crossOfferV10(ls, wheatOffer, maxWheatReceive, numWheatReceived,
+                              maxSheepSend, numSheepSend, wheatStays,
+                              isPathPayment, offerTrail, isMarginTrade);
             needMore = !wheatStays;
         }
         else
         {
             cor = crossOffer(ls, wheatOffer, maxWheatReceive, numWheatReceived,
-                             maxSheepSend, numSheepSend, offerTrail);
+                             maxSheepSend, numSheepSend, offerTrail,
+                             isMarginTrade);
             needMore = true;
         }
 

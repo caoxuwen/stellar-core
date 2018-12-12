@@ -18,9 +18,9 @@ namespace stellar
 {
 
 static const uint32 allAccountFlags =
-    (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG);
+    (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG | BASE_ASSET_FLAG);
 static const uint32 allAccountAuthFlags =
-    (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG);
+    (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG | BASE_ASSET_FLAG);
 
 SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult& res,
                                      TransactionFrame& parentTx)

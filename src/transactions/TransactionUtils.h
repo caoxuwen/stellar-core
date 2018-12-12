@@ -53,6 +53,9 @@ void acquireLiabilities(AbstractLedgerState& ls,
 bool addBalance(LedgerStateHeader const& header, LedgerStateEntry& entry,
                 int64_t delta);
 
+bool addDebt(LedgerStateHeader const& header, LedgerStateEntry& entry,
+             int64_t delta);
+
 bool addBuyingLiabilities(LedgerStateHeader const& header,
                           LedgerStateEntry& entry, int64_t delta);
 
@@ -112,9 +115,15 @@ bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerStateEntry const& entry);
 bool isAuthorized(ConstLedgerStateEntry const& entry);
 
+bool isBaseAsset(AbstractLedgerState& ls, LedgerEntry const& le);
+bool isBaseAsset(AbstractLedgerState& ls, LedgerStateEntry const& entry);
+bool isBaseAsset(AbstractLedgerState& ls, ConstLedgerStateEntry const& entry);
+
 bool isAuthRequired(ConstLedgerStateEntry const& entry);
 
 bool isImmutableAuth(LedgerStateEntry const& entry);
+
+bool isBaseAssetIssuer(ConstLedgerStateEntry const& entry);
 
 void normalizeSigners(LedgerStateEntry& entry);
 

@@ -216,6 +216,46 @@ addBalance(int64_t& balance, int64_t delta, int64_t maxBalance)
 }
 
 bool
+addDebt(int64_t& balance, int64_t delta, int64_t maxBalance, int64_t minBalance)
+{
+    assert(maxBalance >= 0);
+    assert(minBalance <= 0);
+
+    if (delta == 0)
+    {
+        return true;
+    }
+
+    if (balance > maxBalance || balance < minBalance)
+    {
+        return false;
+    }
+
+    if (delta > maxBalance || delta < minBalance)
+    {
+        return false;
+    }
+
+    if (balance >= 0)
+    {
+        if (maxBalance - balance < delta)
+        {
+            return false;
+        }
+    }
+    else
+    {
+        if (minBalance - balance > delta)
+        {
+            return false;
+        }
+    }
+
+    balance += delta;
+    return true;
+}
+
+bool
 iequals(std::string const& a, std::string const& b)
 {
     size_t sz = a.size();

@@ -63,6 +63,10 @@ strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
 bool addBalance(int64_t& balance, int64_t delta,
                 int64_t maxBalance = std::numeric_limits<int64_t>::max());
 
+bool addDebt(int64_t& balance, int64_t delta,
+             int64_t maxBalance = std::numeric_limits<int64_t>::max(),
+             int64_t minBalance = std::numeric_limits<int64_t>::min());
+
 bool iequals(std::string const& a, std::string const& b);
 
 bool operator>=(Price const& a, Price const& b);

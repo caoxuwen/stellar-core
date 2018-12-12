@@ -23,7 +23,7 @@ class TrustLineWrapper
     std::unique_ptr<AbstractImpl> mImpl;
 
     std::unique_ptr<AbstractImpl> const& getImpl() const;
-
+    
   public:
     TrustLineWrapper();
     TrustLineWrapper(AbstractLedgerState& ls, AccountID const& accountID,
@@ -44,6 +44,9 @@ class TrustLineWrapper
     int64_t getBalance() const;
     bool addBalance(LedgerStateHeader const& header, int64_t delta);
 
+    int64_t getDebt() const;
+    bool addDebt(LedgerStateHeader const& header, int64_t delta);
+
     int64_t getBuyingLiabilities(LedgerStateHeader const& header);
     int64_t getSellingLiabilities(LedgerStateHeader const& header);
 
@@ -53,6 +56,8 @@ class TrustLineWrapper
                                   int64_t delta);
 
     bool isAuthorized() const;
+
+    bool isBaseAsset(AbstractLedgerState& ls) const;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const;
 
@@ -82,6 +87,9 @@ class TrustLineWrapper::AbstractImpl
     virtual int64_t getBalance() const = 0;
     virtual bool addBalance(LedgerStateHeader const& header, int64_t delta) = 0;
 
+    virtual int64_t getDebt() const = 0;
+    virtual bool addDebt(LedgerStateHeader const& header, int64_t delta) = 0;
+
     virtual int64_t getBuyingLiabilities(LedgerStateHeader const& header) = 0;
     virtual int64_t getSellingLiabilities(LedgerStateHeader const& header) = 0;
 
@@ -91,6 +99,8 @@ class TrustLineWrapper::AbstractImpl
                                           int64_t delta) = 0;
 
     virtual bool isAuthorized() const = 0;
+
+    virtual bool isBaseAsset(AbstractLedgerState& ls) const = 0;
 
     virtual int64_t
     getAvailableBalance(LedgerStateHeader const& header) const = 0;
@@ -127,7 +137,11 @@ class ConstTrustLineWrapper
 
     int64_t getBalance() const;
 
+    int64_t getDebt() const;
+
     bool isAuthorized() const;
+
+    bool isBaseAsset(AbstractLedgerState& ls) const;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const;
 
@@ -153,10 +167,14 @@ class ConstTrustLineWrapper::AbstractImpl
 
     virtual int64_t getBalance() const = 0;
 
+    virtual int64_t getDebt() const = 0;
+
     virtual bool isAuthorized() const = 0;
 
+    virtual bool isBaseAsset(AbstractLedgerState& ls) const = 0;
+
     virtual Asset getAsset() const = 0;
-    
+
     virtual int64_t
     getAvailableBalance(LedgerStateHeader const& header) const = 0;
 

@@ -28,6 +28,9 @@ class TrustLineWrapper::NonIssuerImpl : public TrustLineWrapper::AbstractImpl
     int64_t getBalance() const override;
     bool addBalance(LedgerStateHeader const& header, int64_t delta) override;
 
+    int64_t getDebt() const override;
+    bool addDebt(LedgerStateHeader const& header, int64_t delta) override;
+
     int64_t getBuyingLiabilities(LedgerStateHeader const& header) override;
     int64_t getSellingLiabilities(LedgerStateHeader const& header) override;
 
@@ -37,6 +40,8 @@ class TrustLineWrapper::NonIssuerImpl : public TrustLineWrapper::AbstractImpl
                                   int64_t delta) override;
 
     bool isAuthorized() const override;
+
+    bool isBaseAsset(AbstractLedgerState& ls) const override;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const override;
 
@@ -59,6 +64,9 @@ class TrustLineWrapper::IssuerImpl : public TrustLineWrapper::AbstractImpl
     int64_t getBalance() const override;
     bool addBalance(LedgerStateHeader const& header, int64_t delta) override;
 
+    int64_t getDebt() const override;
+    bool addDebt(LedgerStateHeader const& header, int64_t delta) override;
+
     int64_t getBuyingLiabilities(LedgerStateHeader const& header) override;
     int64_t getSellingLiabilities(LedgerStateHeader const& header) override;
 
@@ -68,6 +76,8 @@ class TrustLineWrapper::IssuerImpl : public TrustLineWrapper::AbstractImpl
                                   int64_t delta) override;
 
     bool isAuthorized() const override;
+
+    bool isBaseAsset(AbstractLedgerState& ls) const override;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const override;
 
@@ -136,10 +146,22 @@ TrustLineWrapper::getBalance() const
     return getImpl()->getBalance();
 }
 
+int64_t
+TrustLineWrapper::getDebt() const
+{
+    return getImpl()->getDebt();
+}
+
 bool
 TrustLineWrapper::addBalance(LedgerStateHeader const& header, int64_t delta)
 {
     return getImpl()->addBalance(header, delta);
+}
+
+bool
+TrustLineWrapper::addDebt(LedgerStateHeader const& header, int64_t delta)
+{
+    return getImpl()->addDebt(header, delta);
 }
 
 int64_t
@@ -172,6 +194,12 @@ bool
 TrustLineWrapper::isAuthorized() const
 {
     return getImpl()->isAuthorized();
+}
+
+bool
+TrustLineWrapper::isBaseAsset(AbstractLedgerState& ls) const
+{
+    return getImpl()->isBaseAsset(ls);
 }
 
 int64_t
@@ -231,11 +259,24 @@ TrustLineWrapper::NonIssuerImpl::getBalance() const
     return mEntry.current().data.trustLine().balance;
 }
 
+int64_t
+TrustLineWrapper::NonIssuerImpl::getDebt() const
+{
+    return mEntry.current().data.trustLine().debt;
+}
+
 bool
 TrustLineWrapper::NonIssuerImpl::addBalance(LedgerStateHeader const& header,
                                             int64_t delta)
 {
     return stellar::addBalance(header, mEntry, delta);
+}
+
+bool
+TrustLineWrapper::NonIssuerImpl::addDebt(LedgerStateHeader const& header,
+                                         int64_t delta)
+{
+    return stellar::addDebt(header, mEntry, delta);
 }
 
 int64_t
@@ -270,6 +311,12 @@ bool
 TrustLineWrapper::NonIssuerImpl::isAuthorized() const
 {
     return stellar::isAuthorized(mEntry);
+}
+
+bool
+TrustLineWrapper::NonIssuerImpl::isBaseAsset(AbstractLedgerState& ls) const
+{
+    return stellar::isBaseAsset(ls, mEntry);
 }
 
 int64_t
@@ -316,9 +363,22 @@ TrustLineWrapper::IssuerImpl::getBalance() const
     return INT64_MAX;
 }
 
+int64_t
+TrustLineWrapper::IssuerImpl::getDebt() const
+{
+    return INT64_MAX;
+}
+
 bool
 TrustLineWrapper::IssuerImpl::addBalance(LedgerStateHeader const& header,
                                          int64_t delta)
+{
+    return true;
+}
+
+bool
+TrustLineWrapper::IssuerImpl::addDebt(LedgerStateHeader const& header,
+                                      int64_t delta)
 {
     return true;
 }
@@ -357,6 +417,12 @@ TrustLineWrapper::IssuerImpl::isAuthorized() const
     return true;
 }
 
+bool
+TrustLineWrapper::IssuerImpl::isBaseAsset(AbstractLedgerState& ls) const
+{
+    return false;
+}
+
 int64_t
 TrustLineWrapper::IssuerImpl::getAvailableBalance(
     LedgerStateHeader const& header) const
@@ -384,7 +450,11 @@ class ConstTrustLineWrapper::NonIssuerImpl
 
     int64_t getBalance() const override;
 
+    int64_t getDebt() const override;
+
     bool isAuthorized() const override;
+
+    bool isBaseAsset(AbstractLedgerState& ls) const override;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const override;
 
@@ -401,7 +471,11 @@ class ConstTrustLineWrapper::IssuerImpl
 
     int64_t getBalance() const override;
 
+    int64_t getDebt() const override;
+
     bool isAuthorized() const override;
+
+    bool isBaseAsset(AbstractLedgerState& ls) const override;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const override;
 
@@ -467,6 +541,12 @@ ConstTrustLineWrapper::isAuthorized() const
     return getImpl()->isAuthorized();
 }
 
+bool
+ConstTrustLineWrapper::isBaseAsset(AbstractLedgerState& ls) const
+{
+    return getImpl()->isBaseAsset(ls);
+}
+
 int64_t
 ConstTrustLineWrapper::getAvailableBalance(
     LedgerStateHeader const& header) const
@@ -509,10 +589,22 @@ ConstTrustLineWrapper::NonIssuerImpl::getBalance() const
     return mEntry.current().data.trustLine().balance;
 }
 
+int64_t
+ConstTrustLineWrapper::NonIssuerImpl::getDebt() const
+{
+    return mEntry.current().data.trustLine().debt;
+}
+
 bool
 ConstTrustLineWrapper::NonIssuerImpl::isAuthorized() const
 {
     return stellar::isAuthorized(mEntry);
+}
+
+bool
+ConstTrustLineWrapper::NonIssuerImpl::isBaseAsset(AbstractLedgerState& ls) const
+{
+    return stellar::isBaseAsset(ls, mEntry);
 }
 
 int64_t
@@ -547,10 +639,22 @@ ConstTrustLineWrapper::IssuerImpl::getBalance() const
     return INT64_MAX;
 }
 
+int64_t
+ConstTrustLineWrapper::IssuerImpl::getDebt() const
+{
+    return 0;
+}
+
 bool
 ConstTrustLineWrapper::IssuerImpl::isAuthorized() const
 {
     return true;
+}
+
+bool
+ConstTrustLineWrapper::IssuerImpl::isBaseAsset(AbstractLedgerState& ls) const
+{
+    return false;
 }
 
 int64_t

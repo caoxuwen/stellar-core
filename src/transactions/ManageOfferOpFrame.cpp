@@ -45,6 +45,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
     LedgerState ls(lsOuter); // ls will always be rolled back
     Asset const& sheep = mManageOffer.selling;
     Asset const& wheat = mManageOffer.buying;
+    bool hasBaseAsset = false;
 
     if (mManageOffer.amount == 0)
     {
@@ -93,6 +94,12 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_SELL_NOT_AUTHORIZED);
             return false;
         }
+
+        if (mMarginTrade)
+        {
+            if (sheepLineA.isBaseAsset(ls))
+                hasBaseAsset = true;
+        }
     }
 
     if (wheat.type() != ASSET_TYPE_NATIVE)
@@ -127,6 +134,12 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
             return false;
         }
+        
+        if (mMarginTrade)
+        {
+            if (wheatLineA.isBaseAsset(ls))
+                hasBaseAsset = true;
+        }
     }
 
     if (mMarginTrade)
@@ -134,9 +147,20 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         if (wheat.type() == ASSET_TYPE_NATIVE ||
             sheep.type() == ASSET_TYPE_NATIVE)
         {
-            //debt cannot be native assets
+            // debt cannot be native assets
             metrics
                 .NewMeter({"op-manage-offer", "invalid", "margin-not-asset"},
+                          "operation")
+                .Mark();
+            innerResult().code(MANAGE_OFFER_MARGIN_NOT_ASSET);
+            return false;
+        }
+
+        if (!hasBaseAsset)
+        {
+            //offer doesn't contain base asset
+            metrics
+                .NewMeter({"op-manage-offer", "invalid", "margin-no-base-asset"},
                           "operation")
                 .Mark();
             innerResult().code(MANAGE_OFFER_MARGIN_NOT_ASSET);
@@ -159,7 +183,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             return false;
         }
 
-        // the other side should be fixed too?
+        // TODO:the other side should be fixed too?
     }
 
     return true;
@@ -349,7 +373,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
         std::vector<ClaimOfferAtom> offerTrail;
         ConvertResult r = convertWithOffers(
             ls, sheep, maxSheepSend, sheepSent, wheat, maxWheatReceive,
-            wheatReceived, false,
+            wheatReceived, false, mMarginTrade,
             [this, &newOffer, &maxWheatPrice](LedgerStateEntry const& entry) {
                 auto const& o = entry.current().data.offer();
                 assert(o.offerID != newOffer.data.offer().offerID);
@@ -417,6 +441,14 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer claimed over limit");
                 }
+                if (mMarginTrade)
+                {
+                    if (!wheatLineA.addDebt(header, -wheatReceived))
+                    {
+                        // this would indicate a bug in OfferExchange
+                        throw std::runtime_error("cannot modify debt");
+                    }
+                }
             }
 
             if (sheep.type() == ASSET_TYPE_NATIVE)
@@ -435,6 +467,15 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer sold more than balance");
+                }
+
+                if (mMarginTrade)
+                {
+                    if (!sheepLineA.addDebt(header, sheepSent))
+                    {
+                        // this would indicate a bug in OfferExchange
+                        throw std::runtime_error("cannot modify debt");
+                    }
                 }
             }
         }

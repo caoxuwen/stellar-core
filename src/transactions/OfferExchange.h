@@ -113,7 +113,7 @@ enum class CrossOfferResult
 ConvertResult convertWithOffers(
     AbstractLedgerState& ls, Asset const& sheep, int64_t maxSheepSent,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
-    int64_t& wheatReceived, bool isPathPayment,
+    int64_t& wheatReceived, bool isPathPayment, bool isMarginTrade,
     std::function<OfferFilterResult(LedgerStateEntry const&)> filter,
     std::vector<ClaimOfferAtom>& offerTrail);
 }

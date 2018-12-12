@@ -600,8 +600,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     auto& opTimer = app.getMetrics().NewTimer({"transaction", "op", "apply"});
     for (auto& op : mOperations)
     {
-        CLOG(DEBUG, "Tx") << " operations " << mOperations.size();
-
         auto time = opTimer.TimeScope();
         LedgerState lsOp(lsTx);
         bool txRes = op->apply(signatureChecker, app, lsOp);

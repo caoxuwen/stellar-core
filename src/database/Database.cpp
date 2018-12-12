@@ -156,8 +156,7 @@ Database::applySchemaUpgrade(unsigned long vers)
 
     case 8:
         Upgrades::dropAll(*this);
-        mSession << "ALTER TABLE trustlines ADD debt BIGINT "
-                    "CHECK (debt >= 0)";
+        mSession << "ALTER TABLE trustlines ADD debt BIGINT";
         break;
 
     default:

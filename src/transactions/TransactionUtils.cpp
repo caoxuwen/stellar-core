@@ -260,6 +260,36 @@ addBalance(LedgerStateHeader const& header, LedgerStateEntry& entry,
 }
 
 bool
+addDebt(LedgerStateHeader const& header, LedgerStateEntry& entry, int64_t delta)
+{
+    if (entry.current().data.type() == TRUSTLINE)
+    {
+        if (delta == 0)
+        {
+            return true;
+        }
+        if (!isAuthorized(entry))
+        {
+            return false;
+        }
+
+        auto& tl = entry.current().data.trustLine();
+        auto newBalance = tl.debt;
+        if (!stellar::addDebt(newBalance, delta, tl.limit, -tl.limit))
+        {
+            return false;
+        }
+
+        tl.debt = newBalance;
+        return true;
+    }
+    else
+    {
+        throw std::runtime_error("Unknown LedgerEntry type");
+    }
+}
+
+bool
 addBuyingLiabilities(LedgerStateHeader const& header, LedgerStateEntry& entry,
                      int64_t delta)
 {
@@ -655,6 +685,27 @@ isAuthorized(ConstLedgerStateEntry const& entry)
 }
 
 bool
+isBaseAsset(AbstractLedgerState& ls, LedgerEntry const& le)
+{
+    AccountID issuerID = getIssuer(le.data.trustLine().asset);
+    auto issuing_account = loadAccountWithoutRecord(ls, issuerID);
+
+    return isBaseAssetIssuer(issuing_account);
+}
+
+bool
+isBaseAsset(AbstractLedgerState& ls, LedgerStateEntry const& entry)
+{
+    return isBaseAsset(ls, entry.current());
+}
+
+bool
+isBaseAsset(AbstractLedgerState& ls, ConstLedgerStateEntry const& entry)
+{
+    return isBaseAsset(ls, entry.current());
+}
+
+bool
 isAuthRequired(ConstLedgerStateEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_REQUIRED_FLAG) != 0;
@@ -664,6 +715,12 @@ bool
 isImmutableAuth(LedgerStateEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_IMMUTABLE_FLAG) != 0;
+}
+
+bool
+isBaseAssetIssuer(ConstLedgerStateEntry const& entry)
+{
+    return (entry.current().data.account().flags & BASE_ASSET_FLAG) != 0;
 }
 
 void

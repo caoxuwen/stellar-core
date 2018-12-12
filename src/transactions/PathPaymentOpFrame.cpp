@@ -178,7 +178,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         std::vector<ClaimOfferAtom> offerTrail;
         ConvertResult r = convertWithOffers(
             ls, curA, INT64_MAX, curASent, curB, curBReceived,
-            actualCurBReceived, true,
+            actualCurBReceived, true, false, 
             [this, &metrics](LedgerStateEntry const& o) {
                 auto const& offer = o.current().data.offer();
                 if (offer.sellerID == getSourceID())

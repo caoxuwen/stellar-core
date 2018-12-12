@@ -91,11 +91,13 @@ enum AccountFlags
     // otherwise, authorization cannot be revoked
     AUTH_REVOCABLE_FLAG = 0x2,
     // Once set, causes all AUTH_* flags to be read-only
-    AUTH_IMMUTABLE_FLAG = 0x4
+    AUTH_IMMUTABLE_FLAG = 0x4,
+    // issued assets is base asset
+    BASE_ASSET_FLAG = 0x8
 };
 
 // mask for all valid flags
-const MASK_ACCOUNT_FLAGS = 0x7;
+const MASK_ACCOUNT_FLAGS = 0x15;
 
 /* AccountEntry
 
