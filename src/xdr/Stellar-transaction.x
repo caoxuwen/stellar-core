@@ -514,7 +514,8 @@ enum ManageOfferResultCode
 
     // margin errors
     MANAGE_OFFER_MARGIN_NOT_ASSET = -50, // margin cannot be native
-    MANAGE_OFFER_MARGIN_ASSET_INVALID = -51 // can only trade same debt
+    MANAGE_OFFER_MARGIN_ASSET_INVALID = -51, // can only trade same debt
+    MANAGE_OFFER_INSUFFICIENT_MARGIN = -52 // can only trade same debt
 };
 
 enum ManageOfferEffect

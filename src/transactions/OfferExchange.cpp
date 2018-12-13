@@ -78,6 +78,75 @@ canSellAtMost(LedgerStateHeader const& header,
 }
 
 int64_t
+canSellAtMostWithMargin(AbstractLedgerState& ls,
+                        LedgerStateHeader const& header,
+                        TrustLineWrapper const& trustLineA,
+                        TrustLineWrapper const& trustLineB, Price price,
+                        int64_t leverage)
+{
+    // sell A buy B
+    // convert debt and collateral in terms of sheep
+    int64_t debtA = trustLineA.getDebt();
+    int64_t debtB = trustLineB.getDebt() * price.d /
+                    price.n; // TODO: need to check overflow
+    int64_t debt = debtA + debtB;
+    int64_t collateral = 0;
+
+    // either one of the trustline should be a base asset
+    if (trustLineA.isBaseAsset(ls))
+    {
+        collateral = trustLineA.getAvailableBalance(header) + debtA;
+    }
+    else if (trustLineB.isBaseAsset(ls))
+    {
+        collateral =
+            trustLineA.getAvailableBalance(header) * price.d / price.n + debtB;
+    }
+
+    if (collateral * leverage >= debt)
+    {
+        return collateral * leverage - debt;
+    }
+
+    return 0;
+}
+
+int64_t
+canSellAtMostWithMargin(AbstractLedgerState& ls,
+                        LedgerStateHeader const& header,
+                        ConstTrustLineWrapper const& trustLineA,
+                        ConstTrustLineWrapper const& trustLineB,
+                        Price price, int64_t leverage)
+{
+    // sell A buy B
+    // convert debt and collateral in terms of sheep
+    int64_t debtA = trustLineA.getDebt();
+    int64_t debtB = trustLineB.getDebt() * price.d /
+                    price.n; // TODO: need to check overflow
+    int64_t debt = debtA + debtB;
+    int64_t collateral = 0;
+
+    // either one of the trustline should be a base asset
+    if (trustLineA.isBaseAsset(ls))
+    {
+        collateral = trustLineA.getAvailableBalance(header) + debtA;
+    }
+    else if (trustLineB.isBaseAsset(ls))
+    {
+        collateral = trustLineB.getAvailableBalance(header) * price.d /
+                         price.n +
+                     debtB;
+    }
+
+    if (collateral * leverage >= debt)
+    {
+        return collateral * leverage - debt;
+    }
+
+    return 0;
+}
+
+int64_t
 canBuyAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
              Asset const& asset, TrustLineWrapper const& trustLine)
 {

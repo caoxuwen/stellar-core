@@ -23,7 +23,7 @@ class TrustLineWrapper
     std::unique_ptr<AbstractImpl> mImpl;
 
     std::unique_ptr<AbstractImpl> const& getImpl() const;
-    
+
   public:
     TrustLineWrapper();
     TrustLineWrapper(AbstractLedgerState& ls, AccountID const& accountID,
@@ -47,13 +47,17 @@ class TrustLineWrapper
     int64_t getDebt() const;
     bool addDebt(LedgerStateHeader const& header, int64_t delta);
 
+    int64_t getLimit() const;
+
     int64_t getBuyingLiabilities(LedgerStateHeader const& header);
     int64_t getSellingLiabilities(LedgerStateHeader const& header);
 
-    int64_t addBuyingLiabilities(LedgerStateHeader const& header,
-                                 int64_t delta);
+    int64_t addBuyingLiabilities(LedgerStateHeader const& header, int64_t delta,
+                                 bool isMarginTrade = false,
+                                 int64_t calculatedMaxLiability = 0);
     int64_t addSellingLiabilities(LedgerStateHeader const& header,
-                                  int64_t delta);
+                                  int64_t delta, bool isMarginTrade = false,
+                                  int64_t calculatedMaxLiability = 0);
 
     bool isAuthorized() const;
 
@@ -90,13 +94,19 @@ class TrustLineWrapper::AbstractImpl
     virtual int64_t getDebt() const = 0;
     virtual bool addDebt(LedgerStateHeader const& header, int64_t delta) = 0;
 
+    virtual int64_t getLimit() const = 0;
+
     virtual int64_t getBuyingLiabilities(LedgerStateHeader const& header) = 0;
     virtual int64_t getSellingLiabilities(LedgerStateHeader const& header) = 0;
 
-    virtual int64_t addBuyingLiabilities(LedgerStateHeader const& header,
-                                         int64_t delta) = 0;
-    virtual int64_t addSellingLiabilities(LedgerStateHeader const& header,
-                                          int64_t delta) = 0;
+    virtual int64_t
+    addBuyingLiabilities(LedgerStateHeader const& header, int64_t delta,
+                         bool isMarginTrade = false,
+                         int64_t calculatedMaxLiability = 0) = 0;
+    virtual int64_t
+    addSellingLiabilities(LedgerStateHeader const& header, int64_t delta,
+                          bool isMarginTrade = false,
+                          int64_t calculatedMaxLiability = 0) = 0;
 
     virtual bool isAuthorized() const = 0;
 
@@ -139,6 +149,8 @@ class ConstTrustLineWrapper
 
     int64_t getDebt() const;
 
+    int64_t getLimit() const;
+
     bool isAuthorized() const;
 
     bool isBaseAsset(AbstractLedgerState& ls) const;
@@ -168,6 +180,8 @@ class ConstTrustLineWrapper::AbstractImpl
     virtual int64_t getBalance() const = 0;
 
     virtual int64_t getDebt() const = 0;
+
+    virtual int64_t getLimit() const = 0;
 
     virtual bool isAuthorized() const = 0;
 

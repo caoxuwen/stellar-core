@@ -48,7 +48,9 @@ bool isDebtAsset(Asset asset);
 
 void acquireLiabilities(AbstractLedgerState& ls,
                         LedgerStateHeader const& header,
-                        LedgerStateEntry const& offer);
+                        LedgerStateEntry const& offer,
+                        bool isMarginTrade = false,
+                        int64_t calculatedMaxLiability = 0);
 
 bool addBalance(LedgerStateHeader const& header, LedgerStateEntry& entry,
                 int64_t delta);
@@ -57,13 +59,17 @@ bool addDebt(LedgerStateHeader const& header, LedgerStateEntry& entry,
              int64_t delta);
 
 bool addBuyingLiabilities(LedgerStateHeader const& header,
-                          LedgerStateEntry& entry, int64_t delta);
+                          LedgerStateEntry& entry, int64_t delta,
+                          bool isMarginTrade = false,
+                          int64_t calculatedMaxLiability = 0);
 
 bool addNumEntries(LedgerStateHeader const& header, LedgerStateEntry& entry,
                    int count);
 
 bool addSellingLiabilities(LedgerStateHeader const& header,
-                           LedgerStateEntry& entry, int64_t delta);
+                           LedgerStateEntry& entry, int64_t delta,
+                           bool isMarginTrade = false,
+                           int64_t calculatedMaxLiability = 0);
 
 uint64_t generateID(LedgerStateHeader& header);
 
@@ -123,13 +129,17 @@ bool isAuthRequired(ConstLedgerStateEntry const& entry);
 
 bool isImmutableAuth(LedgerStateEntry const& entry);
 
+bool isBaseAssetIssuer(LedgerEntry const& le);
+bool isBaseAssetIssuer(LedgerStateEntry const& entry);
 bool isBaseAssetIssuer(ConstLedgerStateEntry const& entry);
 
 void normalizeSigners(LedgerStateEntry& entry);
 
 void releaseLiabilities(AbstractLedgerState& ls,
                         LedgerStateHeader const& header,
-                        LedgerStateEntry const& offer);
+                        LedgerStateEntry const& offer,
+                        bool isMarginTrade = false,
+                        int64_t calculatedMaxLiability = 0);
 
 void setAuthorized(LedgerStateEntry& entry, bool authorized);
 }

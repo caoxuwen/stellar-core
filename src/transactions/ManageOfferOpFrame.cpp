@@ -95,11 +95,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             return false;
         }
 
-        if (mMarginTrade)
-        {
-            if (sheepLineA.isBaseAsset(ls))
-                hasBaseAsset = true;
-        }
+        if (mMarginTrade && stellar::isBaseAssetIssuer(issuer))
+            hasBaseAsset = true;
     }
 
     if (wheat.type() != ASSET_TYPE_NATIVE)
@@ -134,12 +131,9 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
             return false;
         }
-        
-        if (mMarginTrade)
-        {
-            if (wheatLineA.isBaseAsset(ls))
-                hasBaseAsset = true;
-        }
+
+        if (mMarginTrade && stellar::isBaseAssetIssuer(issuer))
+            hasBaseAsset = true;
     }
 
     if (mMarginTrade)
@@ -158,10 +152,11 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
         if (!hasBaseAsset)
         {
-            //offer doesn't contain base asset
+            // offer doesn't contain base asset
             metrics
-                .NewMeter({"op-manage-offer", "invalid", "margin-no-base-asset"},
-                          "operation")
+                .NewMeter(
+                    {"op-manage-offer", "invalid", "margin-no-base-asset"},
+                    "operation")
                 .Mark();
             innerResult().code(MANAGE_OFFER_MARGIN_NOT_ASSET);
             return false;
@@ -192,8 +187,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 bool
 ManageOfferOpFrame::computeOfferExchangeParameters(
     Application& app, AbstractLedgerState& lsOuter,
-    LedgerEntry const& offerEntry, bool creatingNewOffer, int64_t& maxSheepSend,
-    int64_t& maxWheatReceive)
+    LedgerEntry const& offerEntry, bool creatingNewOffer, bool isMarginTrade,
+    int64_t& maxSheepSend, int64_t& maxWheatReceive)
 {
     LedgerState ls(lsOuter); // ls will always be rolled back
 
@@ -228,6 +223,7 @@ ManageOfferOpFrame::computeOfferExchangeParameters(
     auto wheatLineA = loadTrustLineIfNotNative(ls, getSourceID(), wheat);
 
     maxWheatReceive = canBuyAtMost(header, sourceAccount, wheat, wheatLineA);
+
     if (ledgerVersion >= 10)
     {
         int64_t availableLimit =
@@ -244,21 +240,44 @@ ManageOfferOpFrame::computeOfferExchangeParameters(
             return false;
         }
 
-        int64_t availableBalance =
-            (sheep.type() == ASSET_TYPE_NATIVE)
-                ? getAvailableBalance(header, sourceAccount)
-                : sheepLineA.getAvailableBalance(header);
-        if (availableBalance < getOfferSellingLiabilities(header, offerEntry))
+        if (isMarginTrade)
         {
-            app.getMetrics()
-                .NewMeter({"op-manage-offer", "invalid", "underfunded"},
-                          "operation")
-                .Mark();
-            innerResult().code(MANAGE_OFFER_UNDERFUNDED);
-            return false;
-        }
+            int64_t maxSell = canSellAtMostWithMargin(
+                ls, header, sheepLineA, wheatLineA, offer.price, maxLeverage);
 
-        maxSheepSend = canSellAtMost(header, sourceAccount, sheep, sheepLineA);
+            if (maxSell <= offer.amount)
+            {
+                app.getMetrics()
+                    .NewMeter(
+                        {"op-manage-offer", "invalid", "insufficient margin"},
+                        "operation")
+                    .Mark();
+                innerResult().code(MANAGE_OFFER_INSUFFICIENT_MARGIN);
+                return false;
+            }
+
+            maxSheepSend = maxSell;
+        }
+        else
+        {
+            int64_t availableBalance =
+                (sheep.type() == ASSET_TYPE_NATIVE)
+                    ? getAvailableBalance(header, sourceAccount)
+                    : sheepLineA.getAvailableBalance(header);
+            if (availableBalance <
+                getOfferSellingLiabilities(header, offerEntry))
+            {
+                app.getMetrics()
+                    .NewMeter({"op-manage-offer", "invalid", "underfunded"},
+                              "operation")
+                    .Mark();
+                innerResult().code(MANAGE_OFFER_UNDERFUNDED);
+                return false;
+            }
+
+            maxSheepSend =
+                canSellAtMost(header, sourceAccount, sheep, sheepLineA);
+        }
     }
     else
     {
@@ -320,16 +339,17 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
         // the assets are updated (including the edge case that the buying and
         // selling assets are swapped).
         auto header = ls.loadHeader();
-        if (header.current().ledgerVersion >= 10)
-        {
-            releaseLiabilities(ls, header, sellSheepOffer);
-        }
 
         // rebuild offer based off the manage offer
         auto flags = sellSheepOffer.current().data.offer().flags;
         newOffer.data.offer() = buildOffer(getSourceID(), mManageOffer, flags);
         mPassive = flags & PASSIVE_FLAG;
         mMarginTrade = flags & MARGIN_FLAG;
+
+        if (header.current().ledgerVersion >= 10)
+        {
+            releaseLiabilities(ls, header, sellSheepOffer, mMarginTrade, -1);
+        }
 
         // WARNING: sellSheepOffer is deleted but sourceAccount is not updated
         // to reflect the change in numSubEntries at this point. However, we
@@ -354,7 +374,8 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
         int64_t maxSheepSend = 0;
         int64_t maxWheatReceive = 0;
         if (!computeOfferExchangeParameters(app, ls, newOffer, creatingNewOffer,
-                                            maxSheepSend, maxWheatReceive))
+                                            mMarginTrade, maxSheepSend,
+                                            maxWheatReceive))
         {
             return false;
         }
@@ -413,6 +434,11 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
             abort();
         }
 
+        CLOG(DEBUG, "Tx") << "max " << maxSheepSend << " " << maxWheatReceive
+                          << " sheepsent " << sheepSent << " wheatreceived "
+                          << wheatReceived << " stays?" << sheepStays;
+
+        //            << mCurr->getEntries().size() << " elements";
         // updates the result with the offers that got taken on the way
         for (auto const& oatom : offerTrail)
         {
@@ -494,8 +520,14 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
 
                 OfferEntry& oe = newOffer.data.offer();
                 int64_t sheepSendLimit =
-                    std::min({oe.amount, canSellAtMost(header, sourceAccount,
-                                                       sheep, sheepLineA)});
+                    mMarginTrade
+                        ? std::min({oe.amount,
+                                    canSellAtMostWithMargin(
+                                        ls, header, sheepLineA, wheatLineA,
+                                        oe.price, maxLeverage)})
+                        : std::min(
+                              {oe.amount, canSellAtMost(header, sourceAccount,
+                                                        sheep, sheepLineA)});
                 int64_t wheatReceiveLimit =
                     canBuyAtMost(header, sourceAccount, wheat, wheatLineA);
                 oe.amount =
@@ -538,7 +570,18 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
 
         if (header.current().ledgerVersion >= 10)
         {
-            acquireLiabilities(ls, header, sellSheepOffer);
+            if (mMarginTrade)
+            {
+                // TODO: loaded here bug
+                int64_t mostToSell = computeMaximumSellAmount(
+                    ls, header, sheep, wheat, newOffer.data.offer().price);
+                acquireLiabilities(ls, header, sellSheepOffer, mMarginTrade,
+                                   mostToSell);
+            }
+            else
+            {
+                acquireLiabilities(ls, header, sellSheepOffer);
+            }
         }
     }
     else
@@ -557,6 +600,24 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
         .Mark();
     ls.commit();
     return true;
+}
+
+int64_t
+ManageOfferOpFrame::computeMaximumSellAmount(AbstractLedgerState& lsOuter,
+                                             LedgerStateHeader const& header,
+                                             Asset const& sheep,
+                                             Asset const& wheat,
+                                             Price const& price)
+{
+    // LedgerState ls(lsOuter);
+
+    auto sheepLineA =
+        loadTrustLineWithoutRecordIfNotNative(lsOuter, getSourceID(), sheep);
+    auto wheatLineA =
+        loadTrustLineWithoutRecordIfNotNative(lsOuter, getSourceID(), wheat);
+
+    return canSellAtMostWithMargin(lsOuter, header, sheepLineA, wheatLineA,
+                                   price, maxLeverage);
 }
 
 // makes sure the currencies are different

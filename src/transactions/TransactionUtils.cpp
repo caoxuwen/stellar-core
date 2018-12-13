@@ -9,6 +9,7 @@
 #include "ledger/LedgerStateEntry.h"
 #include "ledger/LedgerStateHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "transactions/ManageOfferOpFrame.h"
 #include "transactions/OfferExchange.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -111,7 +112,9 @@ isDebtAsset(Asset asset)
 static void
 acquireOrReleaseLiabilities(AbstractLedgerState& ls,
                             LedgerStateHeader const& header,
-                            LedgerStateEntry const& offerEntry, bool isAcquire)
+                            LedgerStateEntry const& offerEntry, bool isAcquire,
+                            bool isMarginTrade = false,
+                            int64_t calculatedMaxLiability = 0)
 {
     // This should never happen
     auto const& offer = offerEntry.current().data.offer();
@@ -172,19 +175,34 @@ acquireOrReleaseLiabilities(AbstractLedgerState& ls,
     }
     else
     {
-        auto sellingTrust = loadTrustAndValidate(offer.selling);
-        if (!sellingTrust.addSellingLiabilities(header, sellingLiabilities))
+        if (isMarginTrade)
         {
-            throw std::runtime_error("could not add selling liabilities");
+            auto sellingTrust = loadTrustAndValidate(offer.selling);
+            if (!sellingTrust.addSellingLiabilities(header, sellingLiabilities,
+                                                    isMarginTrade,
+                                                    calculatedMaxLiability))
+            {
+                throw std::runtime_error("could not add selling liabilities");
+            }
+        }
+        else
+        {
+            auto sellingTrust = loadTrustAndValidate(offer.selling);
+            if (!sellingTrust.addSellingLiabilities(header, sellingLiabilities))
+            {
+                throw std::runtime_error("could not add selling liabilities");
+            }
         }
     }
 }
 
 void
 acquireLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header,
-                   LedgerStateEntry const& offer)
+                   LedgerStateEntry const& offer, bool isMarginTrade,
+                   int64_t calculatedMaxLiability)
 {
-    acquireOrReleaseLiabilities(ls, header, offer, true);
+    acquireOrReleaseLiabilities(ls, header, offer, true, isMarginTrade,
+                                calculatedMaxLiability);
 }
 
 bool
@@ -291,7 +309,8 @@ addDebt(LedgerStateHeader const& header, LedgerStateEntry& entry, int64_t delta)
 
 bool
 addBuyingLiabilities(LedgerStateHeader const& header, LedgerStateEntry& entry,
-                     int64_t delta)
+                     int64_t delta, bool isMarginTrade,
+                     int64_t calculatedMaxLiability)
 {
     int64_t buyingLiab = getBuyingLiabilities(header, entry);
 
@@ -374,7 +393,8 @@ addNumEntries(LedgerStateHeader const& header, LedgerStateEntry& entry,
 
 bool
 addSellingLiabilities(LedgerStateHeader const& header, LedgerStateEntry& entry,
-                      int64_t delta)
+                      int64_t delta, bool isMarginTrade,
+                      int64_t calculatedMaxLiability)
 {
     int64_t sellingLiab = getSellingLiabilities(header, entry);
 
@@ -414,7 +434,15 @@ addSellingLiabilities(LedgerStateHeader const& header, LedgerStateEntry& entry,
             return false;
         }
 
-        int64_t maxLiabilities = tl.balance;
+        if (calculatedMaxLiability < 0)
+            calculatedMaxLiability = tl.limit;
+
+        int64_t maxLiabilities =
+            isMarginTrade ? calculatedMaxLiability : tl.balance;
+
+        delta =
+            isMarginTrade ? delta / ManageOfferOpFrame::maxLeverage : delta;
+
         bool res = stellar::addBalance(sellingLiab, delta, maxLiabilities);
         if (res)
         {
@@ -688,9 +716,9 @@ bool
 isBaseAsset(AbstractLedgerState& ls, LedgerEntry const& le)
 {
     AccountID issuerID = getIssuer(le.data.trustLine().asset);
-    auto issuing_account = loadAccountWithoutRecord(ls, issuerID);
+    auto issuer = stellar::loadAccount(ls, issuerID);
 
-    return isBaseAssetIssuer(issuing_account);
+    return isBaseAssetIssuer(issuer);
 }
 
 bool
@@ -718,9 +746,21 @@ isImmutableAuth(LedgerStateEntry const& entry)
 }
 
 bool
+isBaseAssetIssuer(LedgerEntry const& le)
+{
+    return (le.data.account().flags & BASE_ASSET_FLAG) != 0;
+}
+
+bool
+isBaseAssetIssuer(LedgerStateEntry const& entry)
+{
+    return isBaseAssetIssuer(entry.current());
+}
+
+bool
 isBaseAssetIssuer(ConstLedgerStateEntry const& entry)
 {
-    return (entry.current().data.account().flags & BASE_ASSET_FLAG) != 0;
+    return isBaseAssetIssuer(entry.current());
 }
 
 void
@@ -734,9 +774,11 @@ normalizeSigners(LedgerStateEntry& entry)
 
 void
 releaseLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header,
-                   LedgerStateEntry const& offer)
+                   LedgerStateEntry const& offer, bool isMarginTrade,
+                   int64_t calculatedMaxLiability)
 {
-    acquireOrReleaseLiabilities(ls, header, offer, false);
+    acquireOrReleaseLiabilities(ls, header, offer, false, isMarginTrade,
+                                calculatedMaxLiability);
 }
 
 void

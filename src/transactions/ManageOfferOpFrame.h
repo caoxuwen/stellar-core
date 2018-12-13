@@ -16,12 +16,15 @@ class ManageOfferOpFrame : public OperationFrame
     bool checkOfferValid(medida::MetricsRegistry& metrics,
                          AbstractLedgerState& lsOuter);
 
-    bool computeOfferExchangeParameters(Application& app,
-                                        AbstractLedgerState& lsOuter,
-                                        LedgerEntry const& offer,
-                                        bool creatingNewOffer,
-                                        int64_t& maxSheepSend,
-                                        int64_t& maxWheatReceive);
+    bool computeOfferExchangeParameters(
+        Application& app, AbstractLedgerState& lsOuter,
+        LedgerEntry const& offer, bool creatingNewOffer, bool isMarginTrade,
+        int64_t& maxSheepSend, int64_t& maxWheatReceive);
+
+    int64_t computeMaximumSellAmount(AbstractLedgerState& lsOuter,
+                                     LedgerStateHeader const& header,
+                                     Asset const& sheep, Asset const& wheat,
+                                     Price const& price);
 
     ManageOfferResult&
     innerResult()
@@ -50,5 +53,7 @@ class ManageOfferOpFrame : public OperationFrame
     {
         return res.tr().manageOfferResult().code();
     }
+
+    const static int64 maxLeverage = 10;
 };
 }

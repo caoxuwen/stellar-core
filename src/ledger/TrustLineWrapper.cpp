@@ -31,13 +31,17 @@ class TrustLineWrapper::NonIssuerImpl : public TrustLineWrapper::AbstractImpl
     int64_t getDebt() const override;
     bool addDebt(LedgerStateHeader const& header, int64_t delta) override;
 
+    int64_t getLimit() const override;
+
     int64_t getBuyingLiabilities(LedgerStateHeader const& header) override;
     int64_t getSellingLiabilities(LedgerStateHeader const& header) override;
 
-    int64_t addBuyingLiabilities(LedgerStateHeader const& header,
-                                 int64_t delta) override;
+    int64_t addBuyingLiabilities(LedgerStateHeader const& header, int64_t delta,
+                                 bool isMarginTrade = false,
+                                 int64_t calculatedMaxLiability = 0) override;
     int64_t addSellingLiabilities(LedgerStateHeader const& header,
-                                  int64_t delta) override;
+                                  int64_t delta, bool isMarginTrade = false,
+                                  int64_t calculatedMaxLiability = 0) override;
 
     bool isAuthorized() const override;
 
@@ -67,13 +71,17 @@ class TrustLineWrapper::IssuerImpl : public TrustLineWrapper::AbstractImpl
     int64_t getDebt() const override;
     bool addDebt(LedgerStateHeader const& header, int64_t delta) override;
 
+    int64_t getLimit() const override;
+
     int64_t getBuyingLiabilities(LedgerStateHeader const& header) override;
     int64_t getSellingLiabilities(LedgerStateHeader const& header) override;
 
-    int64_t addBuyingLiabilities(LedgerStateHeader const& header,
-                                 int64_t delta) override;
+    int64_t addBuyingLiabilities(LedgerStateHeader const& header, int64_t delta,
+                                 bool isMarginTrade = false,
+                                 int64_t calculatedMaxLiability = 0) override;
     int64_t addSellingLiabilities(LedgerStateHeader const& header,
-                                  int64_t delta) override;
+                                  int64_t delta, bool isMarginTrade = false,
+                                  int64_t calculatedMaxLiability = 0) override;
 
     bool isAuthorized() const override;
 
@@ -152,6 +160,12 @@ TrustLineWrapper::getDebt() const
     return getImpl()->getDebt();
 }
 
+int64_t
+TrustLineWrapper::getLimit() const
+{
+    return getImpl()->getLimit();
+}
+
 bool
 TrustLineWrapper::addBalance(LedgerStateHeader const& header, int64_t delta)
 {
@@ -178,16 +192,20 @@ TrustLineWrapper::getSellingLiabilities(LedgerStateHeader const& header)
 
 int64_t
 TrustLineWrapper::addBuyingLiabilities(LedgerStateHeader const& header,
-                                       int64_t delta)
+                                       int64_t delta, bool isMarginTrade,
+                                       int64_t calculatedMaxLiability)
 {
-    return getImpl()->addBuyingLiabilities(header, delta);
+    return getImpl()->addBuyingLiabilities(header, delta, isMarginTrade,
+                                           calculatedMaxLiability);
 }
 
 int64_t
 TrustLineWrapper::addSellingLiabilities(LedgerStateHeader const& header,
-                                        int64_t delta)
+                                        int64_t delta, bool isMarginTrade,
+                                        int64_t calculatedMaxLiability)
 {
-    return getImpl()->addSellingLiabilities(header, delta);
+    return getImpl()->addSellingLiabilities(header, delta, isMarginTrade,
+                                            calculatedMaxLiability);
 }
 
 bool
@@ -265,6 +283,12 @@ TrustLineWrapper::NonIssuerImpl::getDebt() const
     return mEntry.current().data.trustLine().debt;
 }
 
+int64_t
+TrustLineWrapper::NonIssuerImpl::getLimit() const
+{
+    return mEntry.current().data.trustLine().limit;
+}
+
 bool
 TrustLineWrapper::NonIssuerImpl::addBalance(LedgerStateHeader const& header,
                                             int64_t delta)
@@ -295,16 +319,20 @@ TrustLineWrapper::NonIssuerImpl::getSellingLiabilities(
 
 int64_t
 TrustLineWrapper::NonIssuerImpl::addBuyingLiabilities(
-    LedgerStateHeader const& header, int64_t delta)
+    LedgerStateHeader const& header, int64_t delta, bool isMarginTrade,
+    int64_t calculatedMaxLiability)
 {
-    return stellar::addBuyingLiabilities(header, mEntry, delta);
+    return stellar::addBuyingLiabilities(header, mEntry, delta, isMarginTrade,
+                                         calculatedMaxLiability);
 }
 
 int64_t
 TrustLineWrapper::NonIssuerImpl::addSellingLiabilities(
-    LedgerStateHeader const& header, int64_t delta)
+    LedgerStateHeader const& header, int64_t delta, bool isMarginTrade,
+    int64_t calculatedMaxLiability)
 {
-    return stellar::addSellingLiabilities(header, mEntry, delta);
+    return stellar::addSellingLiabilities(header, mEntry, delta, isMarginTrade,
+                                          calculatedMaxLiability);
 }
 
 bool
@@ -369,6 +397,12 @@ TrustLineWrapper::IssuerImpl::getDebt() const
     return INT64_MAX;
 }
 
+int64_t
+TrustLineWrapper::IssuerImpl::getLimit() const
+{
+    return INT64_MAX;
+}
+
 bool
 TrustLineWrapper::IssuerImpl::addBalance(LedgerStateHeader const& header,
                                          int64_t delta)
@@ -399,14 +433,16 @@ TrustLineWrapper::IssuerImpl::getSellingLiabilities(
 
 int64_t
 TrustLineWrapper::IssuerImpl::addBuyingLiabilities(
-    LedgerStateHeader const& header, int64_t delta)
+    LedgerStateHeader const& header, int64_t delta, bool isMarginTrade,
+    int64_t calculatedMaxLiability)
 {
     return true;
 }
 
 int64_t
 TrustLineWrapper::IssuerImpl::addSellingLiabilities(
-    LedgerStateHeader const& header, int64_t delta)
+    LedgerStateHeader const& header, int64_t delta, bool isMarginTrade,
+    int64_t calculatedMaxLiability)
 {
     return true;
 }
@@ -452,6 +488,8 @@ class ConstTrustLineWrapper::NonIssuerImpl
 
     int64_t getDebt() const override;
 
+    int64_t getLimit() const override;
+
     bool isAuthorized() const override;
 
     bool isBaseAsset(AbstractLedgerState& ls) const override;
@@ -460,7 +498,7 @@ class ConstTrustLineWrapper::NonIssuerImpl
 
     int64_t getMaxAmountReceive(LedgerStateHeader const& header) const override;
 
-    Asset getAsset() const;
+    Asset getAsset() const override;
 };
 
 class ConstTrustLineWrapper::IssuerImpl
@@ -473,6 +511,8 @@ class ConstTrustLineWrapper::IssuerImpl
 
     int64_t getDebt() const override;
 
+    int64_t getLimit() const override;
+
     bool isAuthorized() const override;
 
     bool isBaseAsset(AbstractLedgerState& ls) const override;
@@ -481,7 +521,7 @@ class ConstTrustLineWrapper::IssuerImpl
 
     int64_t getMaxAmountReceive(LedgerStateHeader const& header) const override;
 
-    Asset getAsset() const;
+    Asset getAsset() const override;
 };
 
 // Implementation of ConstTrustLineWrapper ------------------------------------
@@ -533,6 +573,18 @@ int64_t
 ConstTrustLineWrapper::getBalance() const
 {
     return getImpl()->getBalance();
+}
+
+int64_t
+ConstTrustLineWrapper::getDebt() const
+{
+    return getImpl()->getDebt();
+}
+
+int64_t
+ConstTrustLineWrapper::getLimit() const
+{
+    return getImpl()->getLimit();
 }
 
 bool
@@ -595,6 +647,12 @@ ConstTrustLineWrapper::NonIssuerImpl::getDebt() const
     return mEntry.current().data.trustLine().debt;
 }
 
+int64_t
+ConstTrustLineWrapper::NonIssuerImpl::getLimit() const
+{
+    return mEntry.current().data.trustLine().limit;
+}
+
 bool
 ConstTrustLineWrapper::NonIssuerImpl::isAuthorized() const
 {
@@ -643,6 +701,13 @@ int64_t
 ConstTrustLineWrapper::IssuerImpl::getDebt() const
 {
     return 0;
+}
+
+
+int64_t
+ConstTrustLineWrapper::IssuerImpl::getLimit() const
+{
+    return INT64_MAX;
 }
 
 bool

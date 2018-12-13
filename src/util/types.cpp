@@ -4,6 +4,7 @@
 
 #include "util/types.h"
 #include "lib/util/uint128_t.h"
+#include "util/Logging.h"
 #include "util/XDROperators.h"
 #include <algorithm>
 #include <locale>
@@ -198,6 +199,13 @@ addBalance(int64_t& balance, int64_t delta, int64_t maxBalance)
         return true;
     }
 
+    /*
+        CLOG(DEBUG, "Tx") << "balance " << balance << " " << delta << " "
+                          << maxBalance << " conditions "
+                          << (delta < -balance) << " " << (maxBalance - balance
+       < delta);
+    */
+   
     // strange-looking condition, but without UB
     // equivalent to (balance + delta) < 0
     // as balance >= 0, -balance > MIN_INT64, so no conversions needed

@@ -61,6 +61,17 @@ int64_t canSellAtMost(LedgerStateHeader const& header,
                       ConstLedgerStateEntry const& account, Asset const& asset,
                       ConstTrustLineWrapper const& trustLine);
 
+int64_t canSellAtMostWithMargin(AbstractLedgerState& ls,
+                                LedgerStateHeader const& header,
+                                TrustLineWrapper const& trustLineA,
+                                TrustLineWrapper const& trustLineB, Price price,
+                                int64_t leverage);
+int64_t canSellAtMostWithMargin(AbstractLedgerState& ls,
+                                LedgerStateHeader const& header,
+                                ConstTrustLineWrapper const& trustLineA,
+                                ConstTrustLineWrapper const& trustLineB,
+                                Price price, int64_t leverage);
+
 int64_t canBuyAtMost(LedgerStateHeader const& header,
                      LedgerStateEntry const& account, Asset const& asset,
                      TrustLineWrapper const& trustLine);
