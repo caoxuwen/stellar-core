@@ -145,6 +145,11 @@ acquireOrReleaseLiabilities(AbstractLedgerState& ls,
     int64_t buyingLiabilities =
         isAcquire ? getOfferBuyingLiabilities(header, offerEntry)
                   : -getOfferBuyingLiabilities(header, offerEntry);
+
+    int64_t sellingLiabilities =
+        isAcquire ? getOfferSellingLiabilities(header, offerEntry)
+                  : -getOfferSellingLiabilities(header, offerEntry);
+
     if (offer.buying.type() == ASSET_TYPE_NATIVE)
     {
         auto account = loadAccountAndValidate();
@@ -162,9 +167,6 @@ acquireOrReleaseLiabilities(AbstractLedgerState& ls,
         }
     }
 
-    int64_t sellingLiabilities =
-        isAcquire ? getOfferSellingLiabilities(header, offerEntry)
-                  : -getOfferSellingLiabilities(header, offerEntry);
     if (offer.selling.type() == ASSET_TYPE_NATIVE)
     {
         auto account = loadAccountAndValidate();
@@ -178,12 +180,38 @@ acquireOrReleaseLiabilities(AbstractLedgerState& ls,
         if (isMarginTrade)
         {
             auto sellingTrust = loadTrustAndValidate(offer.selling);
-            if (!sellingTrust.addSellingLiabilities(header, sellingLiabilities,
-                                                    isMarginTrade,
-                                                    calculatedMaxLiability))
+            // only add the liability to base asset
+            if (sellingTrust.isBaseAsset(ls))
             {
-                throw std::runtime_error("could not add selling liabilities");
+                if (!sellingTrust.addSellingLiabilities(
+                        header, sellingLiabilities, isMarginTrade,
+                        calculatedMaxLiability))
+                {
+                    throw std::runtime_error(
+                        "could not add selling liabilities");
+                }
             }
+            else
+            {
+                auto buyingTrust = loadTrustAndValidate(offer.buying);
+
+                if (!buyingTrust.addSellingLiabilities(
+                        header,
+                        sellingLiabilities * offer.price.n / offer.price.d,
+                        isMarginTrade, calculatedMaxLiability))
+                {
+                    throw std::runtime_error(
+                        "could not add selling liabilities");
+                }
+            }
+
+            // balance always added to selling 
+            /*
+            if (!sellingTrust.addBalance(header, sellingLiabilities))
+            {
+                throw std::runtime_error(
+                    "could not add balance for margin sell");
+            }*/
         }
         else
         {
@@ -434,26 +462,43 @@ addSellingLiabilities(LedgerStateHeader const& header, LedgerStateEntry& entry,
             return false;
         }
 
-        if (calculatedMaxLiability < 0)
-            calculatedMaxLiability = tl.limit;
-
-        int64_t maxLiabilities =
-            isMarginTrade ? calculatedMaxLiability : tl.balance;
-
-        delta =
-            isMarginTrade ? delta / ManageOfferOpFrame::maxLeverage : delta;
-
-        bool res = stellar::addBalance(sellingLiab, delta, maxLiabilities);
-        if (res)
+        if (isMarginTrade)
         {
-            if (tl.ext.v() == 0)
+            if (calculatedMaxLiability < 0)
+                calculatedMaxLiability = tl.limit;
+
+            int64_t maxLiabilities = calculatedMaxLiability;
+
+            bool res = stellar::addBalance(
+                sellingLiab, delta / ManageOfferOpFrame::maxLeverage,
+                maxLiabilities);
+
+            if (res)
             {
-                tl.ext.v(1);
-                tl.ext.v1().liabilities = Liabilities{0, 0};
+                if (tl.ext.v() == 0)
+                {
+                    tl.ext.v(1);
+                    tl.ext.v1().liabilities = Liabilities{0, 0};
+                }
+                tl.ext.v1().liabilities.selling = sellingLiab;
             }
-            tl.ext.v1().liabilities.selling = sellingLiab;
+            return res;
         }
-        return res;
+        else
+        {
+            int64_t maxLiabilities = tl.balance;
+            bool res = stellar::addBalance(sellingLiab, delta, maxLiabilities);
+            if (res)
+            {
+                if (tl.ext.v() == 0)
+                {
+                    tl.ext.v(1);
+                    tl.ext.v1().liabilities = Liabilities{0, 0};
+                }
+                tl.ext.v1().liabilities.selling = sellingLiab;
+            }
+            return res;
+        }
     }
     else
     {

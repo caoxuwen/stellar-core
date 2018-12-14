@@ -462,17 +462,21 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
             else
             {
                 auto wheatLineA = loadTrustLine(ls, getSourceID(), wheat);
-                if (!wheatLineA.addBalance(header, wheatReceived))
-                {
-                    // this would indicate a bug in OfferExchange
-                    throw std::runtime_error("offer claimed over limit");
-                }
+
                 if (mMarginTrade)
                 {
                     if (!wheatLineA.addDebt(header, -wheatReceived))
                     {
                         // this would indicate a bug in OfferExchange
                         throw std::runtime_error("cannot modify debt");
+                    }
+                }
+                else
+                {
+                    if (!wheatLineA.addBalance(header, wheatReceived))
+                    {
+                        // this would indicate a bug in OfferExchange
+                        throw std::runtime_error("offer claimed over limit");
                     }
                 }
             }
@@ -489,11 +493,6 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
             else
             {
                 auto sheepLineA = loadTrustLine(ls, getSourceID(), sheep);
-                if (!sheepLineA.addBalance(header, -sheepSent))
-                {
-                    // this would indicate a bug in OfferExchange
-                    throw std::runtime_error("offer sold more than balance");
-                }
 
                 if (mMarginTrade)
                 {
@@ -502,6 +501,26 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
                         // this would indicate a bug in OfferExchange
                         throw std::runtime_error("cannot modify debt");
                     }
+                }
+                else
+                {
+                    if (!sheepLineA.addBalance(header, -sheepSent))
+                    {
+                        // this would indicate a bug in OfferExchange
+                        throw std::runtime_error(
+                            "offer sold more than balance");
+                    }
+                }
+            }
+
+            if (mMarginTrade)
+            {
+                auto sheepLineA = loadTrustLine(ls, getSourceID(), sheep);
+                auto wheatLineA = loadTrustLine(ls, getSourceID(), wheat);
+
+                if (!settleProfitLoss(ls, header, sheepLineA, wheatLineA))
+                {
+                    throw std::runtime_error("cannot modify debt");
                 }
             }
         }
@@ -572,11 +591,8 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
         {
             if (mMarginTrade)
             {
-                // TODO: loaded here bug
-                int64_t mostToSell = computeMaximumSellAmount(
-                    ls, header, sheep, wheat, newOffer.data.offer().price);
                 acquireLiabilities(ls, header, sellSheepOffer, mMarginTrade,
-                                   mostToSell);
+                                   -1);
             }
             else
             {

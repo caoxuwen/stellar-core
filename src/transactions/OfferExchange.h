@@ -94,6 +94,11 @@ ExchangeResultV10 applyPriceErrorThresholds(Price price, int64_t wheatReceive,
                                             int64_t sheepSend, bool wheatStays,
                                             bool isPathPayment);
 
+bool
+settleProfitLoss(AbstractLedgerState& ls, LedgerStateHeader const& header,
+                 TrustLineWrapper& sheepLineAccountB,
+                 TrustLineWrapper& wheatLineAccountB);
+
 int64_t adjustOffer(Price const& price, int64_t maxWheatSend,
                     int64_t maxSheepReceive);
 

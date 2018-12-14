@@ -10,6 +10,7 @@
 #include "ledger/LedgerStateHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/util/uint128_t.h"
+#include "transactions/ManageOfferOpFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 
@@ -95,12 +96,15 @@ canSellAtMostWithMargin(AbstractLedgerState& ls,
     // either one of the trustline should be a base asset
     if (trustLineA.isBaseAsset(ls))
     {
-        collateral = trustLineA.getAvailableBalance(header) + debtA;
+        int64_t balanceA = trustLineA.getAvailableBalance(header);
+
+        collateral = balanceA;
     }
     else if (trustLineB.isBaseAsset(ls))
     {
-        collateral =
-            trustLineA.getAvailableBalance(header) * price.d / price.n + debtB;
+        int64_t balanceB = trustLineB.getAvailableBalance(header);
+
+        collateral = balanceB * price.d / price.n;
     }
 
     if (collateral * leverage >= debt)
@@ -115,8 +119,8 @@ int64_t
 canSellAtMostWithMargin(AbstractLedgerState& ls,
                         LedgerStateHeader const& header,
                         ConstTrustLineWrapper const& trustLineA,
-                        ConstTrustLineWrapper const& trustLineB,
-                        Price price, int64_t leverage)
+                        ConstTrustLineWrapper const& trustLineB, Price price,
+                        int64_t leverage)
 {
     // sell A buy B
     // convert debt and collateral in terms of sheep
@@ -129,13 +133,15 @@ canSellAtMostWithMargin(AbstractLedgerState& ls,
     // either one of the trustline should be a base asset
     if (trustLineA.isBaseAsset(ls))
     {
-        collateral = trustLineA.getAvailableBalance(header) + debtA;
+        int64_t balanceA = trustLineA.getAvailableBalance(header);
+
+        collateral = balanceA;
     }
     else if (trustLineB.isBaseAsset(ls))
     {
-        collateral = trustLineB.getAvailableBalance(header) * price.d /
-                         price.n +
-                     debtB;
+        int64_t balanceB = trustLineB.getAvailableBalance(header);
+
+        collateral = balanceB * price.d / price.n;
     }
 
     if (collateral * leverage >= debt)
@@ -670,14 +676,21 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
 }
 
 void
-adjustOffer(LedgerStateHeader const& header, LedgerStateEntry& offer,
-            LedgerStateEntry const& account, Asset const& wheat,
-            TrustLineWrapper const& wheatLine, Asset const& sheep,
-            TrustLineWrapper const& sheepLine)
+adjustOffer(AbstractLedgerState& ls, LedgerStateHeader const& header,
+            LedgerStateEntry& offer, LedgerStateEntry const& account,
+            Asset const& wheat, TrustLineWrapper const& wheatLine,
+            Asset const& sheep, TrustLineWrapper const& sheepLine,
+            bool isMarginTrade)
 {
     OfferEntry& oe = offer.current().data.offer();
     int64_t maxWheatSend =
-        std::min({oe.amount, canSellAtMost(header, account, wheat, wheatLine)});
+        isMarginTrade
+            ? std::min(
+                  {oe.amount, canSellAtMostWithMargin(
+                                  ls, header, wheatLine, sheepLine, oe.price,
+                                  ManageOfferOpFrame::maxLeverage)})
+            : std::min({oe.amount,
+                        canSellAtMost(header, account, wheat, wheatLine)});
     int64_t maxSheepReceive = canBuyAtMost(header, account, sheep, sheepLine);
     oe.amount = adjustOffer(oe.price, maxWheatSend, maxSheepReceive);
 }
@@ -939,13 +952,17 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
         {
             auto sheepLineAccountB =
                 stellar::loadTrustLine(lsInner, accountBID, sheep);
-            if (!sheepLineAccountB.addBalance(header, numSheepSend))
-            {
-                return CrossOfferResult::eOfferCantConvert;
-            }
+
             if (isMarginTrade)
             {
                 if (!sheepLineAccountB.addDebt(header, -numSheepSend))
+                {
+                    return CrossOfferResult::eOfferCantConvert;
+                }
+            }
+            else
+            {
+                if (!sheepLineAccountB.addBalance(header, numSheepSend))
                 {
                     return CrossOfferResult::eOfferCantConvert;
                 }
@@ -974,14 +991,17 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
         {
             auto wheatLineAccountB =
                 stellar::loadTrustLine(lsInner, accountBID, wheat);
-            if (!wheatLineAccountB.addBalance(header, -numWheatReceived))
-            {
-                return CrossOfferResult::eOfferCantConvert;
-            }
 
             if (isMarginTrade)
             {
                 if (!wheatLineAccountB.addDebt(header, numWheatReceived))
+                {
+                    return CrossOfferResult::eOfferCantConvert;
+                }
+            }
+            else
+            {
+                if (!wheatLineAccountB.addBalance(header, -numWheatReceived))
                 {
                     return CrossOfferResult::eOfferCantConvert;
                 }
@@ -1020,7 +1040,7 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
     }
 
     // Remove liabilities associated with the offer being crossed.
-    releaseLiabilities(ls, header, sellingWheatOffer);
+    releaseLiabilities(ls, header, sellingWheatOffer, isMarginTrade, -1);
 
     // Load necessary accounts and trustlines. Note that any LedgerEntry loaded
     // here was also loaded during releaseLiabilities.
@@ -1034,11 +1054,15 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 
     // As of the protocol version 10, this call to adjustOffer should have no
     // effect. We leave it here only as a preventative measure.
-    adjustOffer(header, sellingWheatOffer, accountB, wheat, wheatLineAccountB,
-                sheep, sheepLineAccountB);
+    adjustOffer(ls, header, sellingWheatOffer, accountB, wheat,
+                wheatLineAccountB, sheep, sheepLineAccountB, isMarginTrade);
 
     int64_t maxWheatSend =
-        canSellAtMost(header, accountB, wheat, wheatLineAccountB);
+        isMarginTrade
+            ? canSellAtMostWithMargin(ls, header, wheatLineAccountB,
+                                      sheepLineAccountB, offer.price,
+                                      ManageOfferOpFrame::maxLeverage)
+            : canSellAtMost(header, accountB, wheat, wheatLineAccountB);
     maxWheatSend = std::min({offer.amount, maxWheatSend});
     int64_t maxSheepReceive =
         canBuyAtMost(header, accountB, sheep, sheepLineAccountB);
@@ -1062,17 +1086,19 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
         }
         else
         {
-            if (!sheepLineAccountB.addBalance(header, numSheepSend))
-            {
-                throw std::runtime_error("overflowed sheep balance");
-            }
-
             if (isMarginTrade)
             {
                 if (!sheepLineAccountB.addDebt(header, -numSheepSend))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("cannot modify debt");
+                }
+            }
+            else
+            {
+                if (!sheepLineAccountB.addBalance(header, numSheepSend))
+                {
+                    throw std::runtime_error("overflowed sheep balance");
                 }
             }
         }
@@ -1089,11 +1115,6 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
         }
         else
         {
-            if (!wheatLineAccountB.addBalance(header, -numWheatReceived))
-            {
-                throw std::runtime_error("overflowed wheat balance");
-            }
-
             if (isMarginTrade)
             {
                 if (!wheatLineAccountB.addDebt(header, numWheatReceived))
@@ -1102,14 +1123,29 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
                     throw std::runtime_error("cannot modify debt");
                 }
             }
+            else
+            {
+                if (!wheatLineAccountB.addBalance(header, -numWheatReceived))
+                {
+                    throw std::runtime_error("overflowed wheat balance");
+                }
+            }
+        }
+    }
+
+    if (isMarginTrade)
+    {
+        if (!settleProfitLoss(ls, header, sheepLineAccountB, wheatLineAccountB))
+        {
+            throw std::runtime_error("cannot modify debt");
         }
     }
 
     if (wheatStays)
     {
         offer.amount -= numWheatReceived;
-        adjustOffer(header, sellingWheatOffer, accountB, wheat,
-                    wheatLineAccountB, sheep, sheepLineAccountB);
+        adjustOffer(ls, header, sellingWheatOffer, accountB, wheat,
+                    wheatLineAccountB, sheep, sheepLineAccountB, isMarginTrade);
     }
     else
     {
@@ -1130,18 +1166,69 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
         }
         else
         {
-            acquireLiabilities(lsInner, header, sellingWheatOffer);
+            acquireLiabilities(lsInner, header, sellingWheatOffer,
+                               isMarginTrade, -1);
         }
+
         lsInner.commit();
     }
 
-    // Note: The previous block creates a nested LedgerState so all entries are
-    // deactivated at this point. Specifically, you cannot use sellingWheatOffer
-    // or offer (which is a reference) since it is not active (and may have been
-    // erased) at this point.
+    // Note: The previous block creates a nested LedgerState so all
+    // entries are deactivated at this point. Specifically, you cannot
+    // use sellingWheatOffer or offer (which is a reference) since it is
+    // not active (and may have been erased) at this point.
     offerTrail.push_back(ClaimOfferAtom(accountBID, offerID, wheat,
                                         numWheatReceived, sheep, numSheepSend));
     return res;
+}
+
+bool
+settleProfitLoss(AbstractLedgerState& ls, LedgerStateHeader const& header,
+                 TrustLineWrapper& sheepLineAccountB,
+                 TrustLineWrapper& wheatLineAccountB)
+{
+    // realize profit/loss
+    int64_t sheepDebt = sheepLineAccountB.getDebt();
+    int64_t wheatDebt = wheatLineAccountB.getDebt();
+
+    if ((sheepDebt >= 0 && wheatDebt >= 0) ||
+        (sheepDebt <= 0 && wheatDebt <= 0))
+    {
+        if (sheepLineAccountB.isBaseAsset(ls))
+        {
+            if (!sheepLineAccountB.addDebt(header, -sheepDebt))
+            {
+                throw std::runtime_error(
+                    "realize profit/loss cannot modify debt");
+            }
+
+            if (!sheepLineAccountB.addBalance(header, -sheepDebt))
+            {
+                throw std::runtime_error(
+                    "realize profit/loss cannot modify balance");
+            }
+        }
+        else if (wheatLineAccountB.isBaseAsset(ls))
+        {
+            if (!wheatLineAccountB.addDebt(header, -wheatDebt))
+            {
+                throw std::runtime_error(
+                    "realize profit/loss cannot modify debt");
+            }
+
+            if (!wheatLineAccountB.addBalance(header, -wheatDebt))
+            {
+                throw std::runtime_error(
+                    "realize profit/loss cannot modify balance");
+            }
+        }
+        else
+        {
+            throw std::runtime_error("realize profit/loss invalid asset");
+        }
+    }
+
+    return true;
 }
 
 ConvertResult
