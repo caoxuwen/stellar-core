@@ -90,7 +90,9 @@ canSellAtMostWithMargin(AbstractLedgerState& ls,
     int64_t debtA = trustLineA.getDebt();
     int64_t debtB = trustLineB.getDebt() * price.d /
                     price.n; // TODO: need to check overflow
-    int64_t debt = debtA + debtB;
+    int64_t debt = debtA > 0 ? debtA : 0;
+    debt += debtB > 0 ? debtB : 0;
+
     int64_t collateral = 0;
 
     // either one of the trustline should be a base asset
@@ -127,7 +129,9 @@ canSellAtMostWithMargin(AbstractLedgerState& ls,
     int64_t debtA = trustLineA.getDebt();
     int64_t debtB = trustLineB.getDebt() * price.d /
                     price.n; // TODO: need to check overflow
-    int64_t debt = debtA + debtB;
+    int64_t debt = debtA > 0 ? debtA : 0;
+    debt += debtB > 0 ? debtB : 0;
+    
     int64_t collateral = 0;
 
     // either one of the trustline should be a base asset
