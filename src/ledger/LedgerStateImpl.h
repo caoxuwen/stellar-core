@@ -303,9 +303,6 @@ class LedgerStateRoot::Impl
     std::vector<LedgerEntry> loadAllOffers() const;
     std::list<LedgerEntry>::const_iterator
     loadOffers(StatementContext& prep, std::list<LedgerEntry>& offers) const;
-    std::list<LedgerEntry>::const_iterator
-    loadBestOffers(std::list<LedgerEntry>& offers, Asset const& buying,
-                   Asset const& selling, size_t numOffers, size_t offset) const;
     std::vector<LedgerEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) const;
@@ -393,7 +390,9 @@ class LedgerStateRoot::Impl
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
                  std::set<LedgerKey>& exclude);
-
+    std::list<LedgerEntry>::const_iterator
+    loadBestOffers(std::list<LedgerEntry>& offers, Asset const& buying,
+                   Asset const& selling, size_t numOffers, size_t offset) const;
     // getOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,

@@ -491,6 +491,105 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("incomplete HISTORY block");
                 }
             }
+            else if (item.first == "TRADING")
+            {
+                auto trade = item.second->as_group();
+                if (trade)
+                {
+                    for (auto const& archive : *trade)
+                    {
+                        LOG(DEBUG) << "Trading setup: " << archive.first;
+                        auto tab = archive.second->as_group();
+                        if (!tab)
+                        {
+                            throw std::invalid_argument(
+                                "malformed TRADING config block");
+                        }
+                        TrustConfiguration coin1, coin2, baseAsset, refFeed;
+                        for (auto const& c : *tab)
+                        {
+                            if (c.first == "COIN_1" || c.first == "COIN_2" ||
+                                c.first == "BASE_ASSET" ||
+                                c.first == "REFERENCE_FEED")
+                            {
+                                auto values = readStringArray(c);
+
+                                if (values.size() != 2)
+                                {
+                                    std::string err(
+                                        "TRADING-table entry length error: '");
+                                    err += c.first;
+                                    err += "', within [TRADING." +
+                                           archive.first + "]";
+                                    throw std::invalid_argument(err);
+                                }
+
+                                std::string name = values[0];
+
+                                PublicKey nodeID;
+                                parseNodeID(values[1], nodeID);
+                                // std::cout << name <<
+                                // KeyUtils::toStrKey(nodeID);
+
+                                if (c.first == "COIN_1")
+                                {
+                                    coin1 = TrustConfiguration{name, nodeID};
+                                    //coin1 = values;
+                                }
+                                else if (c.first == "COIN_2")
+                                {
+                                    coin2 = TrustConfiguration{name, nodeID};
+                                    //coin2 = values;
+                                }
+                                else if (c.first == "BASE_ASSET")
+                                {
+                                    baseAsset =
+                                        TrustConfiguration{name, nodeID};
+                                    //baseAsset = values;
+                                }
+                                else if (c.first == "REFERENCE_FEED")
+                                {
+                                    refFeed = TrustConfiguration{name, nodeID};
+                                    //refFeed = values;
+                                }
+                            }
+                            else
+                            {
+                                std::string err(
+                                    "Unknown TRADING-table entry: '");
+                                err += c.first;
+                                err +=
+                                    "', within [TRADING." + archive.first + "]";
+                                throw std::invalid_argument(err);
+                            }
+                        }
+                        TRADING[archive.first] = TradingConfiguration{
+                            archive.first, coin1, coin2, baseAsset, refFeed};
+
+                        //auto config = TRADING[archive.first];
+                        // CLOG << TRADING[archive.first];
+                        /*
+                        CLOG(DEBUG, "Tx") << "config name " << config.mName;
+                        CLOG(DEBUG, "Tx")
+                            << config.mCoin1.mName << " "
+                            << KeyUtils::toStrKey(config.mCoin1.mIssuerKey);
+                        CLOG(DEBUG, "Tx")
+                            << config.mCoin2.mName << " "
+                            << KeyUtils::toStrKey(config.mCoin2.mIssuerKey);
+                        CLOG(DEBUG, "Tx")
+                            << config.mBaseAsset.mName << " "
+                            << KeyUtils::toStrKey(config.mBaseAsset.mIssuerKey);
+                        CLOG(DEBUG, "Tx")
+                            << config.mReferenceFeed.mName << " "
+                            << KeyUtils::toStrKey(
+                                   config.mReferenceFeed.mIssuerKey);*/
+                    }
+                }
+                else
+                {
+                    throw std::invalid_argument("incomplete HISTORY block");
+                }
+            }
             else if (item.first == "DATABASE")
             {
                 DATABASE = SecretValue{readString(item)};
@@ -642,11 +741,12 @@ Config::validateConfig()
             unsigned int minSize = 1 + (topSize * 2 - 1) / 3;
             if (QUORUM_SET.threshold < minSize)
             {
-                LOG(ERROR)
-                    << "Your THRESHOLD_PERCENTAGE is too low. If you really "
-                       "want "
-                       "this set UNSAFE_QUORUM=true. Be sure you know what you "
-                       "are doing!";
+                LOG(ERROR) << "Your THRESHOLD_PERCENTAGE is too low. If "
+                              "you really "
+                              "want "
+                              "this set UNSAFE_QUORUM=true. Be sure you "
+                              "know what you "
+                              "are doing!";
                 throw std::invalid_argument("SCP unsafe");
             }
         }

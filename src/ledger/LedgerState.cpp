@@ -47,7 +47,8 @@ EntryIterator::getImpl() const
     return mImpl;
 }
 
-EntryIterator& EntryIterator::operator++()
+EntryIterator&
+EntryIterator::operator++()
 {
     getImpl()->advance();
     return *this;
@@ -1382,6 +1383,13 @@ LedgerStateRoot::getBestOffer(Asset const& buying, Asset const& selling,
                               std::set<LedgerKey>& exclude)
 {
     return mImpl->getBestOffer(buying, selling, exclude);
+}
+
+std::list<LedgerEntry>::const_iterator
+LedgerStateRoot::loadBestOffers(std::list<LedgerEntry>& offers, Asset const& buying,
+               Asset const& selling, size_t numOffers, size_t offset) const
+{
+    return mImpl->loadBestOffers(offers, buying, selling, numOffers, offset);
 }
 
 static std::shared_ptr<LedgerEntry const>

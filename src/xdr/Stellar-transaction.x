@@ -653,7 +653,9 @@ enum InflationResultCode
     // codes considered as "success" for the operation
     INFLATION_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    INFLATION_NOT_TIME = -1
+    INFLATION_NOT_TIME = -1,
+    INFLATION_NO_REFERENCE_PRICE = -2,
+    INFLATION_INVALID_MID_PRICE = -3
 };
 
 struct InflationPayout // or use PaymentResultAtom to limit types?

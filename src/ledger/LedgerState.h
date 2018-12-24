@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <list>
 
 namespace stellar
 {
@@ -119,6 +120,7 @@ class AbstractLedgerStateParent
     virtual std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
                  std::set<LedgerKey>& exclude) = 0;
+
     virtual std::map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) = 0;
@@ -371,6 +373,9 @@ class LedgerStateRoot : public AbstractLedgerStateParent
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
                  std::set<LedgerKey>& exclude) override;
+    std::list<LedgerEntry>::const_iterator
+    loadBestOffers(std::list<LedgerEntry>& offers, Asset const& buying,
+                   Asset const& selling, size_t numOffers, size_t offset) const;
 
     std::map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,

@@ -26,6 +26,21 @@ struct HistoryArchiveConfiguration
     std::string mMkdirCmd;
 };
 
+struct TrustConfiguration
+{
+    std::string mName;
+    PublicKey mIssuerKey;
+};
+
+struct TradingConfiguration
+{
+    std::string mName;
+    TrustConfiguration mCoin1;
+    TrustConfiguration mCoin2;
+    TrustConfiguration mBaseAsset;
+    TrustConfiguration mReferenceFeed;
+};
+
 class Config : public std::enable_shared_from_this<Config>
 {
     void validateConfig();
@@ -196,6 +211,9 @@ class Config : public std::enable_shared_from_this<Config>
 
     // History config
     std::map<std::string, HistoryArchiveConfiguration> HISTORY;
+
+    // History config
+    std::map<std::string, TradingConfiguration> TRADING;
 
     // Database config
     SecretValue DATABASE;
