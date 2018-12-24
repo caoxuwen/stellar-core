@@ -26,9 +26,8 @@ const uint32_t INFLATION_FREQUENCY = (60 * 60); // every hour
 // const int INFLATION_NUM_WINNERS = 2000;
 const time_t INFLATION_START_TIME = (1404172800LL); // 1-jul-2014 (unix epoch)
 // TODO: change start time
-const double DEPTH_THRESHOLD = 100.0;
-const size_t BATCH_SIZE = 100;
-const size_t BASE_CONVERSION = 10000000; // 10^7
+const stellar::int64 BASE_CONVERSION = 10000000; // 10^7
+const stellar::int64 DEPTH_THRESHOLD = 100 * BASE_CONVERSION;
 
 namespace stellar
 {
@@ -91,7 +90,7 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         return false;
     };
     CLOG(DEBUG, "Tx") << "refPrice " << refPrice;
-    
+
     Asset coin1;
     coin1.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     coin1.alphaNum4().issuer = config.mCoin1.mIssuerKey;
@@ -108,7 +107,7 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     strToAssetCode(base.alphaNum4().assetCode, config.mBaseAsset.mName);
 
     double midOrderbookPrice;
-    if (!getMidOrderbookPrice(app, coin1, coin2, base, midOrderbookPrice))
+    if (!getMidOrderbookPrice(ls, coin1, coin2, base, midOrderbookPrice))
     {
         app.getMetrics()
             .NewMeter({"op-inflation", "failure", "invalid-mid-price"},
@@ -238,18 +237,18 @@ InflationOpFrame::getReferencePrice(AbstractLedgerState& lsouter,
 }
 
 bool
-InflationOpFrame::getMidOrderbookPrice(Application& app, Asset& coin1,
-                                       Asset& coin2, Asset& base,
-                                       double& result)
+InflationOpFrame::getMidOrderbookPrice(AbstractLedgerState& ls,
+                                       Asset const& coin1, Asset const& coin2,
+                                       Asset const& base, double& result)
 {
     double bidprice = -1;
-    if (!getAvgOfferPrice(app, coin1, coin2, base, bidprice))
+    if (!getAvgOfferPrice(ls, coin1, coin2, base, bidprice))
     {
         return false;
     }
 
     double offerprice = -1;
-    if (!getAvgOfferPrice(app, coin2, coin1, base, offerprice))
+    if (!getAvgOfferPrice(ls, coin2, coin1, base, offerprice))
     {
         return false;
     }
@@ -261,14 +260,17 @@ InflationOpFrame::getMidOrderbookPrice(Application& app, Asset& coin1,
 
     result = (bidprice + offerprice) / 2.0;
 
-    // ls.loadBestOffer(coin2, coin1);
+    return true;
 }
 
 bool
-InflationOpFrame::getAvgOfferPrice(Application& app, Asset& coin1, Asset& coin2,
-                                   Asset& base, double& result)
+InflationOpFrame::getAvgOfferPrice(AbstractLedgerState& lsouter,
+                                   Asset const& coin1, Asset const& coin2,
+                                   Asset const& base, double& result)
 {
-    double coin1IsBase = false;
+    LedgerState ls(lsouter);
+
+    bool coin1IsBase = false;
     if (compareAsset(coin1, base))
     {
         coin1IsBase = true;
@@ -283,53 +285,63 @@ InflationOpFrame::getAvgOfferPrice(Application& app, Asset& coin1, Asset& coin2,
     }
 
     // assets are denominated in base
-    bool allLoaded = false;
-    std::list<LedgerEntry> offers;
-    double depth = 0;
-    double total = 0;
-    while (!allLoaded && depth < DEPTH_THRESHOLD)
+    std::set<LedgerKey> excludes;
+    int64 depth = DEPTH_THRESHOLD;
+    int64 total = 0;
+
+    while (depth > 0)
     {
         std::list<LedgerEntry>::const_iterator iter;
-        try
+        auto le = ls.getBestOffer(coin1, coin2, excludes);
+        if (le)
         {
-            iter = app.getLedgerStateRoot().loadBestOffers(
-                offers, coin1, coin2, BATCH_SIZE, offers.size());
 
-            for (; iter != offers.end(); ++iter)
-            {
-                auto entry = LedgerEntry(*iter);
-                Price price = entry.data.offer().price;
-                double amount = entry.data.offer().amount / BASE_CONVERSION;
-                double denominated_amount =
-                    coin1IsBase ? amount : amount * price.d / price.n;
-                depth += denominated_amount;
-                if (coin1IsBase)
-                    total += denominated_amount * price.d / price.n;
-                else
-                    total += denominated_amount * price.n / price.d;
+            auto entry = ls.load(LedgerEntryKey(*le));
+            Price price = entry.current().data.offer().price;
+            int64 amount = entry.current().data.offer().amount;
+            int64 denominated_amount =
+                coin1IsBase ? bigDivide(amount, price.n, price.d, ROUND_DOWN)
+                            : amount;
+            CLOG(DEBUG, "Tx") << "amount1 " << amount << " " << price.n << " "
+                              << price.d << " " << coin1IsBase;
 
-                if (depth > DEPTH_THRESHOLD)
-                    break;
-            }
+            int64 indexed_amount =
+                depth < denominated_amount ? depth : denominated_amount;
+            CLOG(DEBUG, "Tx")
+                << "amount " << denominated_amount << " " << indexed_amount;
+
+            if (coin1IsBase)
+                total +=
+                    bigDivide(indexed_amount, price.d, price.n, ROUND_DOWN);
+            else
+                total +=
+                    bigDivide(indexed_amount, price.n, price.d, ROUND_DOWN);
+
+            depth -= indexed_amount;
+
+            excludes.insert(LedgerEntryKey(*le));
         }
-        catch (...)
+        else
         {
-            return false;
-        }
-
-        if (std::distance(iter, offers.cend()) < BATCH_SIZE)
-        {
-            allLoaded = true;
+            break;
         }
     }
-    if (depth == 0)
+    if (depth == DEPTH_THRESHOLD)
     {
         return false;
     }
 
-    result = total / depth;
+    result = (double)total / (double)(DEPTH_THRESHOLD - depth);
+
     return true;
 }
+
+static bool
+double_equals(double a, double b, double epsilon = __DBL_EPSILON__)
+{
+    return std::abs(a - b) < epsilon;
+}
+
 static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                         "abcdefghijklmnopqrstuvwxyz"
                                         "0123456789+/";

@@ -22,10 +22,10 @@ class InflationOpFrame : public OperationFrame
 
     bool getReferencePrice(AbstractLedgerState& lsouter, std::string feedName,
                            PublicKey& issuerKey, double& result);
-    bool getMidOrderbookPrice(Application& app, Asset& coin1,
-                              Asset& coin2, Asset& base, double& result);
-    bool getAvgOfferPrice(Application& app, Asset& coin1,
-                          Asset& coin2, Asset& base, double& result);
+    bool getMidOrderbookPrice(AbstractLedgerState& ls, Asset const& coin1,
+                              Asset const& coin2, Asset const& base, double& result);
+    bool getAvgOfferPrice(AbstractLedgerState& ls, Asset const& coin1,
+                          Asset const& coin2, Asset const& base, double& result);
 
     std::string base64_decode(std::string const& encoded_string);
 
