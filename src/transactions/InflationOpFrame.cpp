@@ -17,6 +17,7 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include "math.h"
 #include <list>
 
 const uint32_t INFLATION_FREQUENCY = (60 * 60); // every hour
