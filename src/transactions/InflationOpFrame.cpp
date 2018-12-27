@@ -9,6 +9,7 @@
 #include "ledger/LedgerStateHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
+#include "math.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "overlay/StellarXDR.h"
@@ -17,7 +18,6 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
-#include "math.h"
 #include <list>
 
 const uint32_t INFLATION_FREQUENCY = (60 * 60); // every hour
@@ -122,7 +122,6 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         };
 
         // now credit each account
-        innerResult().code(INFLATION_SUCCESS);
         auto& payouts = innerResult().payouts();
 
         if (fabs(midOrderbookPrice - refPrice) >= refPrice * DIFF_THRESHOLD)
@@ -211,6 +210,8 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
        = inflationAmount + lh.feePool;
 
         lh.feePool = 0;*/
+    innerResult().code(INFLATION_SUCCESS);
+
     lh.inflationSeq++;
 
     // now credit each account
