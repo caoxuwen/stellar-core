@@ -124,7 +124,7 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         innerResult().code(INFLATION_SUCCESS);
         auto& payouts = innerResult().payouts();
 
-        if (std::abs(midOrderbookPrice - refPrice) >= refPrice * DIFF_THRESHOLD)
+        if (fabs(midOrderbookPrice - refPrice) >= refPrice * DIFF_THRESHOLD)
         {
             // only doing funding mechanism if diff >= 0.05%
             double dratio = std::max<double>(
@@ -404,12 +404,6 @@ InflationOpFrame::getAvgOfferPrice(AbstractLedgerState& lsouter,
     result = (double)total / (double)(DEPTH_THRESHOLD - depth);
 
     return true;
-}
-
-static bool
-double_equals(double a, double b, double epsilon = __DBL_EPSILON__)
-{
-    return std::abs(a - b) < epsilon;
 }
 
 static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
