@@ -7,6 +7,7 @@
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerStateEntry.h"
 #include "ledger/LedgerStateHeader.h"
+#include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -28,6 +29,8 @@ const time_t INFLATION_START_TIME = (1404172800LL); // 1-jul-2014 (unix epoch)
 // TODO: change start time
 const stellar::int64 BASE_CONVERSION = 10000000; // 10^7
 const stellar::int64 DEPTH_THRESHOLD = 100 * BASE_CONVERSION;
+const double DIFF_THRESHOLD = 0.005;
+const double MAX_DIFF_THRESHOLD = 0.1;
 
 namespace stellar
 {
@@ -40,7 +43,6 @@ InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
 bool
 InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 {
-    // app.getConfig().NODE_SEED
     auto header = ls.loadHeader();
     auto& lh = header.current();
 
@@ -57,65 +59,138 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         return false;
     }
 
-    const std::string key = "ETHI_USDI";
-    // TODO: check no find
-    TradingConfiguration config = app.getConfig().TRADING.find(key)->second;
-
-    /*
-    CLOG(DEBUG, "Tx") << config.mName;
-    CLOG(DEBUG, "Tx") << config.mCoin1[0];
-    CLOG(DEBUG, "Tx") << config.mCoin2[0];
-    CLOG(DEBUG, "Tx") << config.mBaseAsset[0];
-    CLOG(DEBUG, "Tx") << config.mReferenceFeed[0];*/
-
-    CLOG(DEBUG, "Tx") << config.mName;
-    CLOG(DEBUG, "Tx") << config.mCoin1.mName << " "
-                      << KeyUtils::toStrKey(config.mCoin1.mIssuerKey);
-    CLOG(DEBUG, "Tx") << config.mCoin2.mName << " "
-                      << KeyUtils::toStrKey(config.mCoin2.mIssuerKey);
-    CLOG(DEBUG, "Tx") << config.mBaseAsset.mName << " "
-                      << KeyUtils::toStrKey(config.mBaseAsset.mIssuerKey);
-    CLOG(DEBUG, "Tx") << config.mReferenceFeed.mName << " "
-                      << KeyUtils::toStrKey(config.mReferenceFeed.mIssuerKey);
-
-    double refPrice;
-    if (!getReferencePrice(ls, config.mReferenceFeed.mName,
-                           config.mReferenceFeed.mIssuerKey, refPrice))
+    for (auto const& tradingPair : app.getConfig().TRADING)
     {
-        app.getMetrics()
-            .NewMeter({"op-inflation", "failure", "no-reference-price"},
-                      "operation")
-            .Mark();
-        innerResult().code(INFLATION_NO_REFERENCE_PRICE);
-        return false;
-    };
-    CLOG(DEBUG, "Tx") << "refPrice " << refPrice;
+        TradingConfiguration config = tradingPair.second;
 
-    Asset coin1;
-    coin1.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    coin1.alphaNum4().issuer = config.mCoin1.mIssuerKey;
-    strToAssetCode(coin1.alphaNum4().assetCode, config.mCoin1.mName);
+        /*
+        CLOG(DEBUG, "Tx") << config.mName;
+        CLOG(DEBUG, "Tx") << config.mCoin1[0];
+        CLOG(DEBUG, "Tx") << config.mCoin2[0];
+        CLOG(DEBUG, "Tx") << config.mBaseAsset[0];
+        CLOG(DEBUG, "Tx") << config.mReferenceFeed[0];*/
 
-    Asset coin2;
-    coin2.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    coin2.alphaNum4().issuer = config.mCoin2.mIssuerKey;
-    strToAssetCode(coin2.alphaNum4().assetCode, config.mCoin2.mName);
+        CLOG(DEBUG, "Tx") << config.mName;
+        CLOG(DEBUG, "Tx") << config.mCoin1.mName << " "
+                          << KeyUtils::toStrKey(config.mCoin1.mIssuerKey);
+        CLOG(DEBUG, "Tx") << config.mCoin2.mName << " "
+                          << KeyUtils::toStrKey(config.mCoin2.mIssuerKey);
+        CLOG(DEBUG, "Tx") << config.mBaseAsset.mName << " "
+                          << KeyUtils::toStrKey(config.mBaseAsset.mIssuerKey);
+        CLOG(DEBUG, "Tx") << config.mReferenceFeed.mName << " "
+                          << KeyUtils::toStrKey(
+                                 config.mReferenceFeed.mIssuerKey);
 
-    Asset base;
-    base.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    base.alphaNum4().issuer = config.mBaseAsset.mIssuerKey;
-    strToAssetCode(base.alphaNum4().assetCode, config.mBaseAsset.mName);
+        double refPrice;
+        if (!getReferencePrice(ls, config.mReferenceFeed.mName,
+                               config.mReferenceFeed.mIssuerKey, refPrice))
+        {
+            app.getMetrics()
+                .NewMeter({"op-inflation", "failure", "no-reference-price"},
+                          "operation")
+                .Mark();
+            innerResult().code(INFLATION_NO_REFERENCE_PRICE);
+            return false;
+        };
+        CLOG(DEBUG, "Tx") << "refPrice " << refPrice;
 
-    double midOrderbookPrice;
-    if (!getMidOrderbookPrice(ls, coin1, coin2, base, midOrderbookPrice))
-    {
-        app.getMetrics()
-            .NewMeter({"op-inflation", "failure", "invalid-mid-price"},
-                      "operation")
-            .Mark();
-        innerResult().code(INFLATION_INVALID_MID_PRICE);
-        return false;
-    };
+        Asset coin1;
+        coin1.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        coin1.alphaNum4().issuer = config.mCoin1.mIssuerKey;
+        strToAssetCode(coin1.alphaNum4().assetCode, config.mCoin1.mName);
+
+        Asset coin2;
+        coin2.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        coin2.alphaNum4().issuer = config.mCoin2.mIssuerKey;
+        strToAssetCode(coin2.alphaNum4().assetCode, config.mCoin2.mName);
+
+        Asset base;
+        base.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        base.alphaNum4().issuer = config.mBaseAsset.mIssuerKey;
+        strToAssetCode(base.alphaNum4().assetCode, config.mBaseAsset.mName);
+
+        double midOrderbookPrice;
+        if (!getMidOrderbookPrice(ls, coin1, coin2, base, midOrderbookPrice))
+        {
+            app.getMetrics()
+                .NewMeter({"op-inflation", "failure", "invalid-mid-price"},
+                          "operation")
+                .Mark();
+            innerResult().code(INFLATION_INVALID_MID_PRICE);
+            return false;
+        };
+
+        // now credit each account
+        innerResult().code(INFLATION_SUCCESS);
+        auto& payouts = innerResult().payouts();
+
+        if (std::abs(midOrderbookPrice - refPrice) >= refPrice * DIFF_THRESHOLD)
+        {
+            // only doing funding mechanism if diff >= 0.05%
+
+            double dratio = std::min<double>(
+                (midOrderbookPrice - refPrice) / refPrice, MAX_DIFF_THRESHOLD);
+            int64 factor = 0;
+
+            CLOG(DEBUG, "Tx") << "ref price " << refPrice << " mid price "
+                              << midOrderbookPrice << " ratio " << dratio;
+
+            if (midOrderbookPrice > refPrice)
+            {
+                // if ion > spot, shift collateral from longs to shorts
+                // which entails +debt => +balance
+                factor = 1;
+            }
+            else
+            {
+                // if ion < spot, shift collateral from shorts to longs
+                // which entails +debt => -balance
+                factor = -1;
+            }
+
+            if (compareAsset(coin1, base) || compareAsset(coin2, base))
+            {
+                LedgerState ls_temp(ls);
+                auto debt = stellar::loadTrustLinesWithDebt(ls_temp, base);
+                int64 debt_total = 0;
+                for (auto& debtline : debt)
+                {
+                    TrustLineEntry& tl = debtline.data.trustLine();
+                    CLOG(DEBUG, "Tx") << KeyUtils::toStrKey(tl.accountID) << " "
+                                      << tl.balance << " " << tl.debt;
+                    debt_total += tl.debt;
+
+                    int64 delta = factor * tl.debt * dratio;
+                    CLOG(DEBUG, "Tx")
+                        << KeyUtils::toStrKey(tl.accountID) << " " << delta;
+
+                    auto stateentry =
+                        stellar::loadTrustLine(ls_temp, tl.accountID, base);
+                    if (!stateentry.addBalance(ls_temp.loadHeader(), delta))
+                    {
+                        throw std::runtime_error(
+                            "funding overflowed entry limit");
+                    }
+                    payouts.emplace_back(tl.accountID, base, delta);
+                }
+
+                // conservation of collateral
+                if (debt_total != 0)
+                {
+                    app.getMetrics()
+                        .NewMeter({"op-inflation", "failure", "debt-not-zero"},
+                                  "operation")
+                        .Mark();
+                    innerResult().code(INFLATION_DEBT_NOT_ZERO);
+                    return false;
+                }
+            }
+            else
+            {
+                // TODO: take care of altcoin cases
+            }
+        }
+    }
 
     /*
     Inflation is calculated using the following
@@ -143,8 +218,8 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     lh.inflationSeq++;
 
     // now credit each account
-    innerResult().code(INFLATION_SUCCESS);
-    auto& payouts = innerResult().payouts();
+    // innerResult().code(INFLATION_SUCCESS);
+    // auto& payouts = innerResult().payouts();
 
     /*
         int64 leftAfterDole = amountToDole;
@@ -253,7 +328,7 @@ InflationOpFrame::getMidOrderbookPrice(AbstractLedgerState& ls,
         return false;
     }
 
-    if (bidprice < 0 || offerprice < 0)
+    if (bidprice <= 0 || offerprice <= 0)
     {
         return false;
     }

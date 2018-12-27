@@ -135,6 +135,10 @@ class AbstractLedgerStateParent
     virtual std::vector<InflationWinner>
     getInflationWinners(size_t maxWinners, int64_t minBalance) = 0;
 
+    // getDebtholders returns all holders of asset debt
+    virtual std::vector<LedgerEntry>
+    getDebtHolders(Asset const& asset) = 0;
+
     // getNewestVersion finds the newest version of the LedgerEntry associated
     // with the LedgerKey key by checking if there is a version stored in this
     // AbstractLedgerStateParent, and if not recursively invoking
@@ -315,6 +319,9 @@ class LedgerState final : public AbstractLedgerState
     std::vector<InflationWinner>
     queryInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
+    std::vector<LedgerEntry>
+    getDebtHolders(Asset const& asset) override;
+
     std::vector<LedgerEntry> getLiveEntries() override;
 
     std::shared_ptr<LedgerEntry const>
@@ -385,6 +392,9 @@ class LedgerStateRoot : public AbstractLedgerStateParent
 
     std::vector<InflationWinner>
     getInflationWinners(size_t maxWinners, int64_t minBalance) override;
+
+    std::vector<LedgerEntry>
+    getDebtHolders(Asset const& asset) override;
 
     std::shared_ptr<LedgerEntry const>
     getNewestVersion(LedgerKey const& key) const override;

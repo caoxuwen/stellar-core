@@ -552,6 +552,12 @@ LedgerState::getInflationWinners(size_t maxWinners, int64_t minVotes)
     return getImpl()->getInflationWinners(maxWinners, minVotes);
 }
 
+std::vector<LedgerEntry>
+LedgerState::getDebtHolders(Asset const& asset)
+{
+    return getImpl()->getDebtHolders(asset);
+}
+
 std::map<AccountID, int64_t>
 LedgerState::Impl::getDeltaVotes() const
 {
@@ -685,6 +691,13 @@ LedgerState::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
 
     // Enumerate the new winners in sorted order
     return enumerateInflationWinners(totalVotes, maxWinners, minVotes);
+}
+
+std::vector<LedgerEntry>
+LedgerState::Impl::getDebtHolders(Asset const& asset)
+{
+    //TODO: also compute delta from parent
+    return mParent.getDebtHolders(asset);
 }
 
 std::vector<InflationWinner>
@@ -1386,8 +1399,9 @@ LedgerStateRoot::getBestOffer(Asset const& buying, Asset const& selling,
 }
 
 std::list<LedgerEntry>::const_iterator
-LedgerStateRoot::loadBestOffers(std::list<LedgerEntry>& offers, Asset const& buying,
-               Asset const& selling, size_t numOffers, size_t offset) const
+LedgerStateRoot::loadBestOffers(std::list<LedgerEntry>& offers,
+                                Asset const& buying, Asset const& selling,
+                                size_t numOffers, size_t offset) const
 {
     return mImpl->loadBestOffers(offers, buying, selling, numOffers, offset);
 }
@@ -1525,6 +1539,18 @@ LedgerStateRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
         printErrorAndAbort("unknown fatal error when getting inflation winners "
                            "from LedgerStateRoot");
     }
+}
+
+std::vector<LedgerEntry>
+LedgerStateRoot::getDebtHolders(Asset const& asset)
+{
+    return mImpl->getDebtHolders(asset);
+}
+
+std::vector<LedgerEntry>
+LedgerStateRoot::Impl::getDebtHolders(Asset const& asset)
+{
+    return loadDebtHolders(asset);
 }
 
 std::shared_ptr<LedgerEntry const>

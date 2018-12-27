@@ -6,9 +6,9 @@
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "ledger/LedgerStateImpl.h"
+#include "transactions/TransactionUtils.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
-#include "transactions/TransactionUtils.h"
 
 namespace stellar
 {
@@ -30,7 +30,7 @@ LedgerStateRoot::Impl::loadTrustLine(LedgerKey const& key) const
     {
         return loadDebtTrustLine(key);
     }
-    
+
     std::string actIDStrKey = KeyUtils::toStrKey(key.trustLine().accountID);
     std::string issuerStr, assetStr;
     if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
@@ -102,7 +102,7 @@ LedgerStateRoot::Impl::loadDebtTrustLine(LedgerKey const& key) const
     TrustLineEntry& tl = le.data.trustLine();
 
     auto prep = mDatabase.getPreparedStatement(
-        "SELECT tlimit, balance, flags, lastmodified, buyingliabilities, "
+        "SELECT tlimit, balance, flags, debt, lastmodified, buyingliabilities, "
         "sellingliabilities FROM trustlines "
         "WHERE accountid= :id AND debt > 0");
     auto& st = prep.statement();
@@ -136,6 +136,76 @@ LedgerStateRoot::Impl::loadDebtTrustLine(LedgerKey const& key) const
     }
 
     return std::make_shared<LedgerEntry>(std::move(le));
+}
+
+std::vector<LedgerEntry>
+LedgerStateRoot::Impl::loadDebtHolders(Asset const& asset) const
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        throw std::runtime_error("debt holder should not be native asset");
+    }
+
+    std::string issuerStr, assetStr;
+    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        assetCodeToStr(asset.alphaNum4().assetCode, assetStr);
+        issuerStr = KeyUtils::toStrKey(asset.alphaNum4().issuer);
+    }
+    else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetCodeToStr(asset.alphaNum12().assetCode, assetStr);
+        issuerStr = KeyUtils::toStrKey(asset.alphaNum12().issuer);
+    }
+
+    std::vector<LedgerEntry> trustlines;
+    std::string accountid_str;
+
+    LedgerEntry le;
+    le.data.type(TRUSTLINE);
+    TrustLineEntry& tl = le.data.trustLine();
+    Liabilities liabilities;
+    soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+
+    auto prep = mDatabase.getPreparedStatement(
+        "SELECT accountid, tlimit, balance, flags, debt, lastmodified, "
+        "buyingliabilities, "
+        "sellingliabilities FROM trustlines "
+        "WHERE issuer= :issuer AND assetcode= :asset AND debt != 0");
+    auto& st = prep.statement();
+    st.exchange(soci::into(accountid_str));
+    st.exchange(soci::into(tl.limit));
+    st.exchange(soci::into(tl.balance));
+    st.exchange(soci::into(tl.flags));
+    st.exchange(soci::into(tl.debt));
+    st.exchange(soci::into(le.lastModifiedLedgerSeq));
+    st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
+    st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
+    st.exchange(soci::use(issuerStr));
+    st.exchange(soci::use(assetStr));
+    st.define_and_bind();
+    {
+        auto timer = mDatabase.getSelectTimer("trust");
+        st.execute(true);
+    }
+
+    while (st.got_data())
+    {
+        tl.asset = asset;
+
+        assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
+        if (buyingLiabilitiesInd == soci::i_ok)
+        {
+            tl.ext.v(1);
+            tl.ext.v1().liabilities = liabilities;
+        }
+        tl.accountID = KeyUtils::fromStrKey<PublicKey>(accountid_str);
+
+        trustlines.emplace_back(le);
+        st.fetch();
+    }
+
+    return trustlines;
 }
 
 void
@@ -174,10 +244,11 @@ LedgerStateRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
     std::string sql;
     if (isInsert)
     {
-        sql = "INSERT INTO trustlines "
-              "(accountid, assettype, issuer, assetcode, balance, debt, tlimit, "
-              "flags, lastmodified, buyingliabilities, sellingliabilities) "
-              "VALUES (:id, :at, :iss, :ac, :b, :dt, :tl, :f, :lm, :bl, :sl)";
+        sql =
+            "INSERT INTO trustlines "
+            "(accountid, assettype, issuer, assetcode, balance, debt, tlimit, "
+            "flags, lastmodified, buyingliabilities, sellingliabilities) "
+            "VALUES (:id, :at, :iss, :ac, :b, :dt, :tl, :f, :lm, :bl, :sl)";
     }
     else
     {

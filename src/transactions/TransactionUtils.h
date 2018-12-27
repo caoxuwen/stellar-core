@@ -44,6 +44,9 @@ ConstTrustLineWrapper loadTrustLineWithoutRecordIfNotNative(
 
 Asset makeDebtAsset();
 
+std::vector<LedgerEntry> loadTrustLinesWithDebt(AbstractLedgerState& ls,
+                                                Asset const& asset);
+
 bool isDebtAsset(Asset asset);
 
 void acquireLiabilities(AbstractLedgerState& ls,

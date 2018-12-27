@@ -109,6 +109,12 @@ isDebtAsset(Asset asset)
     return false;
 }
 
+std::vector<LedgerEntry>
+loadTrustLinesWithDebt(AbstractLedgerState& ls, Asset const& asset)
+{
+    return ls.getDebtHolders(asset);
+}
+
 static void
 acquireOrReleaseLiabilities(AbstractLedgerState& ls,
                             LedgerStateHeader const& header,
@@ -205,7 +211,7 @@ acquireOrReleaseLiabilities(AbstractLedgerState& ls,
                 }
             }
 
-            // balance always added to selling 
+            // balance always added to selling
             /*
             if (!sellingTrust.addBalance(header, sellingLiabilities))
             {

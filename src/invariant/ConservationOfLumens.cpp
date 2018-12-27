@@ -68,18 +68,52 @@ ConservationOfLumens::checkOnOperationApply(Operation const& operation,
                             [](int64_t lhs, InflationPayout const& rhs) {
                                 return lhs + rhs.amount;
                             });
-        if (deltaTotalCoins != inflationPayouts + deltaFeePool)
+        bool sameAsset = true;
+        Asset asset;
+        bool assetInitialized = false;
+        for (auto& payout : result.tr().inflationResult().payouts())
         {
-            return fmt::format(
-                "LedgerHeader totalCoins change ({}) did not match"
-                " feePool change ({}) plus inflation payouts ({})",
-                deltaTotalCoins, deltaFeePool, inflationPayouts);
+            if (assetInitialized && !compareAsset(asset, payout.asset))
+            {
+                sameAsset = false;
+                break;
+            }
+            asset = payout.asset;
+            assetInitialized = true;
         }
-        if (deltaBalances != inflationPayouts)
+
+        // TODO:
+        /*
+                if (!sameAsset)
+                {
+                    return fmt::format("LedgerHeader inflation not same type of
+           asset");
+                }
+                */
+
+        if (assetInitialized)
         {
-            return fmt::format("LedgerEntry account balances change ({}) "
-                               "did not match inflation payouts ({})",
-                               deltaBalances, inflationPayouts);
+            if (asset.type() == ASSET_TYPE_NATIVE)
+            {
+                if (deltaTotalCoins != inflationPayouts + deltaFeePool)
+                {
+                    return fmt::format(
+                        "LedgerHeader totalCoins change ({}) did not match"
+                        " feePool change ({}) plus inflation payouts ({})",
+                        deltaTotalCoins, deltaFeePool, inflationPayouts);
+                }
+                if (deltaBalances != inflationPayouts)
+                {
+                    return fmt::format(
+                        "LedgerEntry account balances change ({}) "
+                        "did not match inflation payouts ({})",
+                        deltaBalances, inflationPayouts);
+                }
+            }
+            else
+            {
+                // TODO: funding conservation errors
+            }
         }
     }
     else

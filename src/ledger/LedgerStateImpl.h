@@ -177,6 +177,8 @@ class LedgerState::Impl
     std::vector<InflationWinner> queryInflationWinners(size_t maxWinners,
                                                        int64_t minBalance);
 
+    std::vector<LedgerEntry> getDebtHolders(Asset const& asset);
+
     // getLiveEntries has the strong exception safety guarantee
     std::vector<LedgerEntry> getLiveEntries();
 
@@ -310,9 +312,11 @@ class LedgerStateRoot::Impl
     std::vector<Signer> loadSigners(LedgerKey const& key) const;
     std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
                                                       int64_t minBalance) const;
+    std::vector<LedgerEntry> loadDebtHolders(Asset const& asset) const;
+
     std::shared_ptr<LedgerEntry const>
     loadTrustLine(LedgerKey const& key) const;
-    
+
     std::shared_ptr<LedgerEntry const>
     loadDebtTrustLine(LedgerKey const& key) const;
 
@@ -409,6 +413,8 @@ class LedgerStateRoot::Impl
     //   modified
     std::vector<InflationWinner> getInflationWinners(size_t maxWinners,
                                                      int64_t minBalance);
+
+    std::vector<LedgerEntry> getDebtHolders(Asset const& asset);
 
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then
