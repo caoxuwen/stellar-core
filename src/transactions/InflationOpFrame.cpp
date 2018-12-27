@@ -127,31 +127,23 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         if (std::abs(midOrderbookPrice - refPrice) >= refPrice * DIFF_THRESHOLD)
         {
             // only doing funding mechanism if diff >= 0.05%
-
-            double dratio = std::min<double>(
-                (midOrderbookPrice - refPrice) / refPrice, MAX_DIFF_THRESHOLD);
-            int64 factor = 0;
+            double dratio = std::max<double>(
+                -MAX_DIFF_THRESHOLD,
+                std::min<double>((midOrderbookPrice - refPrice) / refPrice,
+                                 MAX_DIFF_THRESHOLD));
 
             CLOG(DEBUG, "Tx") << "ref price " << refPrice << " mid price "
                               << midOrderbookPrice << " ratio " << dratio;
 
-            if (midOrderbookPrice > refPrice)
-            {
-                // if ion > spot, shift collateral from longs to shorts
-                // which entails +debt => +balance
-                factor = 1;
-            }
-            else
-            {
-                // if ion < spot, shift collateral from shorts to longs
-                // which entails +debt => -balance
-                factor = -1;
-            }
+            // if ion > spot, shift collateral from longs to shorts
+            // which entails +debt => +balance
+            // Conversely, if ion < spot, shift collateral from shorts to longs
+            // which entails +debt => -balance
 
             if (compareAsset(coin1, base) || compareAsset(coin2, base))
             {
-                LedgerState ls_temp(ls);
-                auto debt = stellar::loadTrustLinesWithDebt(ls_temp, base);
+                LedgerState lsinner(ls);
+                auto debt = stellar::loadTrustLinesWithDebt(lsinner, base);
                 int64 debt_total = 0;
                 for (auto& debtline : debt)
                 {
@@ -160,13 +152,13 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                                       << tl.balance << " " << tl.debt;
                     debt_total += tl.debt;
 
-                    int64 delta = factor * tl.debt * dratio;
+                    int64 delta = tl.debt * dratio;
                     CLOG(DEBUG, "Tx")
                         << KeyUtils::toStrKey(tl.accountID) << " " << delta;
 
                     auto stateentry =
-                        stellar::loadTrustLine(ls_temp, tl.accountID, base);
-                    if (!stateentry.addBalance(ls_temp.loadHeader(), delta))
+                        stellar::loadTrustLine(lsinner, tl.accountID, base);
+                    if (!stateentry.addBalance(lsinner.loadHeader(), delta))
                     {
                         throw std::runtime_error(
                             "funding overflowed entry limit");
@@ -184,6 +176,9 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                     innerResult().code(INFLATION_DEBT_NOT_ZERO);
                     return false;
                 }
+
+                // if there's a mistake, not change is committed
+                lsinner.commit();
             }
             else
             {
