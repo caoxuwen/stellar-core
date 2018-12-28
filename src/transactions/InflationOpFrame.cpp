@@ -143,7 +143,11 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             if (compareAsset(coin1, base) || compareAsset(coin2, base))
             {
                 LedgerState lsinner(ls);
-                auto debt = stellar::loadTrustLinesWithDebt(lsinner, base);
+                // have to calculate through non-base asset
+                // as its sum(debt) == 0 => sum(funding) == 0
+                Asset nonbase = compareAsset(coin1, base) ? coin2 : coin1;
+
+                auto debt = stellar::loadTrustLinesWithDebt(lsinner, nonbase);
                 int64 debt_total = 0;
                 for (auto& debtline : debt)
                 {
@@ -152,7 +156,8 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                                       << tl.balance << " " << tl.debt;
                     debt_total += tl.debt;
 
-                    int64 delta = tl.debt * dratio;
+                    // negative because we used nonbase to compute
+                    int64 delta = -tl.debt * dratio / refPrice;
                     CLOG(DEBUG, "Tx")
                         << KeyUtils::toStrKey(tl.accountID) << " " << delta;
 
