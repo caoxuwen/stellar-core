@@ -20,7 +20,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include <list>
 
-const uint32_t INFLATION_FREQUENCY = (60 * 60); // every hour
+const uint32_t INFLATION_INTERVAL = (60*60); // every hour
 // inflation is .000190721 per 7 days, or 1% a year
 // const int64_t INFLATION_RATE_TRILLIONTHS = 190721000LL;
 // const int64_t TRILLION = 1000000000000LL;
@@ -47,11 +47,13 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     auto header = ls.loadHeader();
     auto& lh = header.current();
 
-    time_t closeTime = lh.scpValue.closeTime;
-    uint64_t seq = lh.inflationSeq;
+    uint32_t closeTime = (uint32_t)lh.scpValue.closeTime;
+    uint32_t lastTime = lh.inflationSeq;
 
-    time_t inflationTime = (INFLATION_START_TIME + seq * INFLATION_FREQUENCY);
-    if (closeTime < inflationTime)
+    CLOG(DEBUG, "Tx") << "time " << closeTime << " " << lastTime << " "
+                      << INFLATION_INTERVAL;
+
+    if (closeTime < lastTime + INFLATION_INTERVAL)
     {
         app.getMetrics()
             .NewMeter({"op-inflation", "failure", "not-time"}, "operation")
@@ -82,6 +84,8 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                           << KeyUtils::toStrKey(
                                  config.mReferenceFeed.mIssuerKey);
 
+        // TODO: replace config.mReferenceFeed with highest voted key
+        // through a mechanism similar to inflation destination
         double refPrice;
         if (!getReferencePrice(ls, config.mReferenceFeed.mName,
                                config.mReferenceFeed.mIssuerKey, refPrice))
@@ -120,6 +124,12 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             innerResult().code(INFLATION_INVALID_MID_PRICE);
             return false;
         };
+
+        CLOG(DEBUG, "Tx") << "midPrice " << midOrderbookPrice;
+
+        innerResult().code(INFLATION_SUCCESS);
+        lh.inflationSeq = closeTime;
+        // lh.inflationSeq++;
 
         // now credit each account
         auto& payouts = innerResult().payouts();
@@ -215,9 +225,6 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
        = inflationAmount + lh.feePool;
 
         lh.feePool = 0;*/
-    innerResult().code(INFLATION_SUCCESS);
-
-    lh.inflationSeq++;
 
     // now credit each account
     // innerResult().code(INFLATION_SUCCESS);
