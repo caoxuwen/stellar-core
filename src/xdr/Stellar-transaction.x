@@ -28,7 +28,7 @@ enum OperationType
     MANAGE_DATA = 10,
     BUMP_SEQUENCE = 11,
     CREATE_MARGIN_OFFER = 101,
-    LIQUIDATION = 102,
+    LIQUIDATION = 102
 };
 
 /* CreateAccount
