@@ -19,7 +19,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include <list>
 
-const uint64_t FUNDING_INTERVAL = (60 * 60); // every hour
+const uint64_t FUNDING_INTERVAL = (60 * 60);     // every hour
 const stellar::int64 BASE_CONVERSION = 10000000; // 10^7
 const stellar::int64 DEPTH_THRESHOLD = 100 * BASE_CONVERSION;
 const double DIFF_THRESHOLD = 0.005;
@@ -105,7 +105,8 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         strToAssetCode(base.alphaNum4().assetCode, config.mBaseAsset.mName);
 
         double midOrderbookPrice;
-        if (!getMidOrderbookPrice(ls, coin1, coin2, base, midOrderbookPrice, DEPTH_THRESHOLD))
+        if (!getMidOrderbookPrice(ls, coin1, coin2, base, midOrderbookPrice,
+                                  DEPTH_THRESHOLD))
         {
             app.getMetrics()
                 .NewMeter({"op-inflation", "failure", "invalid-mid-price"},
@@ -116,12 +117,6 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         };
 
         CLOG(DEBUG, "Tx") << "midPrice " << midOrderbookPrice;
-
-        innerResult().code(INFLATION_SUCCESS);
-        lh.inflationSeq++;
-        lh.lastFunding = closeTime;
-
-        // lh.inflationSeq++;
 
         // now credit each account
         auto& payouts = innerResult().payouts();
@@ -193,6 +188,10 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             }
         }
     }
+
+    innerResult().code(INFLATION_SUCCESS);
+    lh.inflationSeq++;
+    lh.lastFunding = closeTime;
 
     app.getMetrics()
         .NewMeter({"op-inflation", "success", "apply"}, "operation")

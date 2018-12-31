@@ -93,7 +93,7 @@ enum AccountFlags
     // Once set, causes all AUTH_* flags to be read-only
     AUTH_IMMUTABLE_FLAG = 0x4,
     // issued assets is base asset
-    BASE_ASSET_FLAG = 0x8,
+    BASE_ASSET_FLAG = 0x8
 };
 
 // mask for all valid flags

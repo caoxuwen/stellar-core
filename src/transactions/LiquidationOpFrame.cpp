@@ -112,7 +112,7 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     lh.lastLiquidation = closeTime;
 
     // now credit each account
-    auto& effects = innerResult().effects;
+    //auto& effects = innerResult().effects;
 
     app.getMetrics()
         .NewMeter({"op-liquidation", "success", "apply"}, "operation")
