@@ -158,7 +158,7 @@ enum TrustLineFlags
     // issuer has authorized account to perform transactions with its credit
     AUTHORIZED_FLAG = 0x1,
     // under liquidation process
-    LIQUIDATION_FLAG = 0x2,
+    LIQUIDATION_FLAG = 0x2
 };
 
 // mask for all trustline flags
