@@ -695,7 +695,7 @@ struct LiquidationEffect // or use PaymentResultAtom to limit types?
 
 union LiquidationResult switch (LiquidationResultCode code)
 {
-case INFLATION_SUCCESS:
+case LIQUIDATION_SUCCESS:
     LiquidationEffect effects<>;
 default:
     void;
