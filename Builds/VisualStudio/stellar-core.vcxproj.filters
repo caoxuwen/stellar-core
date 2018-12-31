@@ -249,6 +249,9 @@
     <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\LiquidationOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\MergeOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -975,6 +978,9 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\InflationOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\LiquidationOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\MergeOpFrame.h">

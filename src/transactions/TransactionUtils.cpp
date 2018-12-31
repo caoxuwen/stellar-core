@@ -11,6 +11,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/ManageOfferOpFrame.h"
 #include "transactions/OfferExchange.h"
+#include "util/Decoder.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 
@@ -746,6 +747,33 @@ getStartingSequenceNumber(LedgerStateHeader const& header)
 }
 
 bool
+getReferencePrice(AbstractLedgerState& lsouter, std::string feedName,
+                  PublicKey& issuerKey, double& result)
+{
+    LedgerState ls(lsouter);
+    auto data = stellar::loadData(ls, issuerKey, feedName);
+    if (data)
+    {
+        try
+        {
+            DataValue val = data.current().data.data().dataValue;
+            std::string base64_str = decoder::encode_b64(val);
+            std::string res_str = base64_decode(base64_str);
+            // CLOG(DEBUG, "Tx") << base64_str << " " << res_str;
+
+            result = std::stod(res_str);
+            return result;
+        }
+        catch (...)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool
 isAuthorized(LedgerEntry const& le)
 {
     return (le.data.trustLine().flags & AUTHORIZED_FLAG) != 0;
@@ -844,5 +872,218 @@ setAuthorized(LedgerStateEntry& entry, bool authorized)
     {
         tl.flags &= ~AUTHORIZED_FLAG;
     }
+}
+
+static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        "abcdefghijklmnopqrstuvwxyz"
+                                        "0123456789+/";
+
+static inline bool
+is_base64(unsigned char c)
+{
+    return (isalnum(c) || (c == '+') || (c == '/'));
+}
+
+std::string
+base64_encode(unsigned char const* bytes_to_encode, unsigned int in_len)
+{
+    std::string ret;
+    int i = 0;
+    int j = 0;
+    unsigned char char_array_3[3];
+    unsigned char char_array_4[4];
+
+    while (in_len--)
+    {
+        char_array_3[i++] = *(bytes_to_encode++);
+        if (i == 3)
+        {
+            char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+            char_array_4[1] = ((char_array_3[0] & 0x03) << 4) +
+                              ((char_array_3[1] & 0xf0) >> 4);
+            char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) +
+                              ((char_array_3[2] & 0xc0) >> 6);
+            char_array_4[3] = char_array_3[2] & 0x3f;
+
+            for (i = 0; (i < 4); i++)
+                ret += base64_chars[char_array_4[i]];
+            i = 0;
+        }
+    }
+
+    if (i)
+    {
+        for (j = i; j < 3; j++)
+            char_array_3[j] = '\0';
+
+        char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+        char_array_4[1] =
+            ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+        char_array_4[2] =
+            ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+        char_array_4[3] = char_array_3[2] & 0x3f;
+
+        for (j = 0; (j < i + 1); j++)
+            ret += base64_chars[char_array_4[j]];
+
+        while ((i++ < 3))
+            ret += '=';
+    }
+
+    return ret;
+}
+
+std::string
+base64_decode(std::string const& encoded_string)
+{
+    int in_len = encoded_string.size();
+    int i = 0;
+    int j = 0;
+    int in_ = 0;
+    unsigned char char_array_4[4], char_array_3[3];
+    std::string ret;
+
+    while (in_len-- && (encoded_string[in_] != '=') &&
+           is_base64(encoded_string[in_]))
+    {
+        char_array_4[i++] = encoded_string[in_];
+        in_++;
+        if (i == 4)
+        {
+            for (i = 0; i < 4; i++)
+                char_array_4[i] = base64_chars.find(char_array_4[i]);
+
+            char_array_3[0] =
+                (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+            char_array_3[1] = ((char_array_4[1] & 0xf) << 4) +
+                              ((char_array_4[2] & 0x3c) >> 2);
+            char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+            for (i = 0; (i < 3); i++)
+                ret += char_array_3[i];
+            i = 0;
+        }
+    }
+
+    if (i)
+    {
+        for (j = i; j < 4; j++)
+            char_array_4[j] = 0;
+
+        for (j = 0; j < 4; j++)
+            char_array_4[j] = base64_chars.find(char_array_4[j]);
+
+        char_array_3[0] =
+            (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+        char_array_3[1] =
+            ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+        char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+        for (j = 0; (j < i - 1); j++)
+            ret += char_array_3[j];
+    }
+
+    return ret;
+}
+
+bool
+getMidOrderbookPrice(AbstractLedgerState& ls, Asset const& coin1,
+                     Asset const& coin2, Asset const& base, double& result,
+                     int64 DEPTH_THRESHOLD)
+{
+    double bidprice = -1;
+    if (!getAvgOfferPrice(ls, coin1, coin2, base, bidprice, DEPTH_THRESHOLD))
+    {
+        return false;
+    }
+
+    double offerprice = -1;
+    if (!getAvgOfferPrice(ls, coin2, coin1, base, offerprice, DEPTH_THRESHOLD))
+    {
+        return false;
+    }
+
+    if (bidprice <= 0 || offerprice <= 0)
+    {
+        return false;
+    }
+
+    result = (bidprice + offerprice) / 2.0;
+
+    return true;
+}
+
+bool
+getAvgOfferPrice(AbstractLedgerState& lsouter, Asset const& coin1,
+                 Asset const& coin2, Asset const& base, double& result,
+                 int64 DEPTH_THRESHOLD)
+{
+    LedgerState ls(lsouter);
+
+    bool coin1IsBase = false;
+    if (compareAsset(coin1, base))
+    {
+        coin1IsBase = true;
+    }
+    else if (compareAsset(coin2, base))
+    {
+        coin1IsBase = false;
+    }
+    else
+    {
+        return false;
+    }
+
+    // assets are denominated in base
+    std::set<LedgerKey> excludes;
+    int64 total = 0;
+    int64 depth = DEPTH_THRESHOLD;
+
+    while (depth > 0)
+    {
+        std::list<LedgerEntry>::const_iterator iter;
+        auto le = ls.getBestOffer(coin1, coin2, excludes);
+        if (le)
+        {
+
+            auto entry = ls.load(LedgerEntryKey(*le));
+            Price price = entry.current().data.offer().price;
+            int64 amount = entry.current().data.offer().amount;
+            int64 denominated_amount =
+                coin1IsBase ? bigDivide(amount, price.n, price.d, ROUND_DOWN)
+                            : amount;
+            // CLOG(DEBUG, "Tx") << "amount1 " << amount << " " << price.n << "
+            // "
+            //                 << price.d << " " << coin1IsBase;
+
+            int64 indexed_amount =
+                depth < denominated_amount ? depth : denominated_amount;
+            // CLOG(DEBUG, "Tx")
+            //    << "amount " << denominated_amount << " " << indexed_amount;
+
+            if (coin1IsBase)
+                total +=
+                    bigDivide(indexed_amount, price.d, price.n, ROUND_DOWN);
+            else
+                total +=
+                    bigDivide(indexed_amount, price.n, price.d, ROUND_DOWN);
+
+            depth -= indexed_amount;
+
+            excludes.insert(LedgerEntryKey(*le));
+        }
+        else
+        {
+            break;
+        }
+    }
+    if (depth == DEPTH_THRESHOLD)
+    {
+        return false;
+    }
+
+    result = (double)total / (double)(DEPTH_THRESHOLD - depth);
+
+    return true;
 }
 }

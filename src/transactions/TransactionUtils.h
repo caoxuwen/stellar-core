@@ -120,6 +120,19 @@ int64_t getSellingLiabilities(LedgerStateHeader const& header,
 
 uint64_t getStartingSequenceNumber(LedgerStateHeader const& header);
 
+bool getReferencePrice(AbstractLedgerState& lsouter, std::string feedName,
+                       PublicKey& issuerKey, double& result);
+bool getMidOrderbookPrice(AbstractLedgerState& ls, Asset const& coin1,
+                          Asset const& coin2, Asset const& base,
+                          double& result, int64 DEPTH_THRESHOLD);
+bool getAvgOfferPrice(AbstractLedgerState& ls, Asset const& coin1,
+                      Asset const& coin2, Asset const& base, double& result, int64 DEPTH_THRESHOLD);
+
+std::string base64_decode(std::string const& encoded_string);
+
+std::string base64_encode(unsigned char const* bytes_to_encode,
+                          unsigned int in_len);
+
 bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerStateEntry const& entry);
 bool isAuthorized(ConstLedgerStateEntry const& entry);

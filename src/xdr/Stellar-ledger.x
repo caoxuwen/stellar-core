@@ -45,6 +45,8 @@ struct LedgerHeader
     Hash bucketListHash;     // hash of the ledger state
 
     uint32 ledgerSeq; // sequence number of this ledger
+    uint64 lastFunding; // last funding run
+    uint64 lastLiquidation; // last liquidation run
 
     int64 totalCoins; // total number of stroops in existence.
                       // 10,000,000 stroops in 1 XLM

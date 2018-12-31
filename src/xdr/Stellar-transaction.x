@@ -27,7 +27,8 @@ enum OperationType
     INFLATION = 9,
     MANAGE_DATA = 10,
     BUMP_SEQUENCE = 11,
-    CREATE_MARGIN_OFFER = 101
+    CREATE_MARGIN_OFFER = 101,
+    LIQUIDATION = 102,
 };
 
 /* CreateAccount
@@ -288,6 +289,8 @@ struct Operation
         ManageDataOp manageDataOp;
     case BUMP_SEQUENCE:
         BumpSequenceOp bumpSequenceOp;
+    case LIQUIDATION:
+        void;
     }
     body;
 };
@@ -674,6 +677,30 @@ default:
     void;
 };
 
+enum LiquidationResultCode
+{
+    // codes considered as "success" for the operation
+    LIQUIDATION_SUCCESS = 0,
+    // codes considered as "failure" for the operation
+    LIQUIDATION_NOT_TIME = -1,
+    LIQUIDATION_NO_REFERENCE_PRICE = -2,
+};
+
+struct LiquidationEffect // or use PaymentResultAtom to limit types?
+{
+    AccountID destination;
+    Asset asset;
+    int64 amount;
+};
+
+union LiquidationResult switch (LiquidationResultCode code)
+{
+case INFLATION_SUCCESS:
+    LiquidationEffect effects<>;
+default:
+    void;
+};
+
 /******* ManageData Result ********/
 
 enum ManageDataResultCode
@@ -756,6 +783,8 @@ case opINNER:
         ManageDataResult manageDataResult;
     case BUMP_SEQUENCE:
         BumpSequenceResult bumpSeqResult;
+    case LIQUIDATION:
+        LiquidationResult liquidationResult;
     }
     tr;
 default:

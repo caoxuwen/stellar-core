@@ -10,27 +10,27 @@ namespace stellar
 {
 class AbstractLedgerState;
 
-class InflationOpFrame : public OperationFrame
+class LiquidationOpFrame : public OperationFrame
 {
-    InflationResult&
+    LiquidationResult&
     innerResult()
     {
-        return mResult.tr().inflationResult();
+        return mResult.tr().liquidationResult();
     }
 
     ThresholdLevel getThresholdLevel() const override;
 
   public:
-    InflationOpFrame(Operation const& op, OperationResult& res,
+    LiquidationOpFrame(Operation const& op, OperationResult& res,
                      TransactionFrame& parentTx);
 
     bool doApply(Application& app, AbstractLedgerState& ls) override;
     bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
 
-    static InflationResultCode
+    static LiquidationResultCode
     getInnerCode(OperationResult const& res)
     {
-        return res.tr().inflationResult().code();
+        return res.tr().liquidationResult().code();
     }
 };
 }

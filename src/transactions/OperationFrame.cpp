@@ -16,6 +16,7 @@
 #include "transactions/CreatePassiveOfferOpFrame.h"
 #include "transactions/CreateMarginOfferOpFrame.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/LiquidationOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
@@ -81,6 +82,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<MergeOpFrame>(op, res, tx);
     case INFLATION:
         return std::make_shared<InflationOpFrame>(op, res, tx);
+    case LIQUIDATION:
+        return std::make_shared<LiquidationOpFrame>(op, res, tx);
     case MANAGE_DATA:
         return std::make_shared<ManageDataOpFrame>(op, res, tx);
     case BUMP_SEQUENCE:
