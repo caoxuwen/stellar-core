@@ -8,10 +8,10 @@
 #include "ledger/LedgerStateHeader.h"
 #include "xdr/Stellar-ledger.h"
 #include <functional>
+#include <list>
 #include <map>
 #include <memory>
 #include <set>
-#include <list>
 
 namespace stellar
 {
@@ -136,8 +136,13 @@ class AbstractLedgerStateParent
     getInflationWinners(size_t maxWinners, int64_t minBalance) = 0;
 
     // getDebtholders returns all holders of asset debt
+    virtual std::vector<LedgerEntry> getDebtHolders(Asset const& asset) = 0;
+
+    // getDebtholders returns all holders of asset debt
     virtual std::vector<LedgerEntry>
-    getDebtHolders(Asset const& asset) = 0;
+    getLiquidationCandidates(Asset const& asset1, double ratio1,
+                             Asset const& asset2, double ratio2,
+                             Asset const& assetBalance) = 0;
 
     // getNewestVersion finds the newest version of the LedgerEntry associated
     // with the LedgerKey key by checking if there is a version stored in this
@@ -319,8 +324,12 @@ class LedgerState final : public AbstractLedgerState
     std::vector<InflationWinner>
     queryInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
+    std::vector<LedgerEntry> getDebtHolders(Asset const& asset) override;
+
     std::vector<LedgerEntry>
-    getDebtHolders(Asset const& asset) override;
+    getLiquidationCandidates(Asset const& asset1, double ratio1,
+                             Asset const& asset2, double ratio2,
+                             Asset const& assetBalance) override;
 
     std::vector<LedgerEntry> getLiveEntries() override;
 
@@ -393,8 +402,12 @@ class LedgerStateRoot : public AbstractLedgerStateParent
     std::vector<InflationWinner>
     getInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
+    std::vector<LedgerEntry> getDebtHolders(Asset const& asset) override;
+
     std::vector<LedgerEntry>
-    getDebtHolders(Asset const& asset) override;
+    getLiquidationCandidates(Asset const& asset1, double ratio1,
+                             Asset const& asset2, double ratio2,
+                             Asset const& assetBalance) override;
 
     std::shared_ptr<LedgerEntry const>
     getNewestVersion(LedgerKey const& key) const override;

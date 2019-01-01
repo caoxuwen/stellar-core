@@ -55,16 +55,12 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         return false;
     }
 
+    innerResult().code(LIQUIDATION_SUCCESS);
+    lh.lastLiquidation = closeTime;
+
     for (auto const& tradingPair : app.getConfig().TRADING)
     {
         TradingConfiguration config = tradingPair.second;
-
-        /*
-        CLOG(DEBUG, "Tx") << config.mName;
-        CLOG(DEBUG, "Tx") << config.mCoin1[0];
-        CLOG(DEBUG, "Tx") << config.mCoin2[0];
-        CLOG(DEBUG, "Tx") << config.mBaseAsset[0];
-        CLOG(DEBUG, "Tx") << config.mReferenceFeed[0];*/
 
         CLOG(DEBUG, "Tx") << config.mName;
         CLOG(DEBUG, "Tx") << config.mCoin1.mName << " "
@@ -106,14 +102,36 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         base.type(ASSET_TYPE_CREDIT_ALPHANUM4);
         base.alphaNum4().issuer = config.mBaseAsset.mIssuerKey;
         strToAssetCode(base.alphaNum4().assetCode, config.mBaseAsset.mName);
+
+        // process trustlines that should fall into liquidation mode
+
+        double price1 = 1, price2 = 1;
+        if (compareAsset(coin1, base))
+        {
+            price2 = refPrice;
+        }
+        else if (compareAsset(coin1, base))
+        {
+            price1 = refPrice;
+        }
+        else
+        {
+            // TODO: altcoin perpetual case
+        }
+
+        auto trustlines = stellar::loadTrustLinesShouldLiquidate(
+            ls, coin1, price1, coin2, price2, base);
+
+        for (auto& trustline : trustlines)
+        {
+            TrustLineEntry& tl = trustline.data.trustLine();
+            CLOG(DEBUG, "Tx") << KeyUtils::toStrKey(tl.accountID) << " "
+                              << tl.balance << " " << tl.debt;
+        }
+
+        // now credit each account
+        // auto& effects = innerResult().effects;
     }
-
-    innerResult().code(LIQUIDATION_SUCCESS);
-    lh.lastLiquidation = closeTime;
-
-    // now credit each account
-    //auto& effects = innerResult().effects;
-
     app.getMetrics()
         .NewMeter({"op-liquidation", "success", "apply"}, "operation")
         .Mark();

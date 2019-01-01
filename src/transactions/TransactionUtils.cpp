@@ -116,6 +116,14 @@ loadTrustLinesWithDebt(AbstractLedgerState& ls, Asset const& asset)
     return ls.getDebtHolders(asset);
 }
 
+std::vector<LedgerEntry>
+loadTrustLinesShouldLiquidate(AbstractLedgerState& ls, Asset const& asset1,
+                              double ratio1, Asset const& asset2, double ratio2,
+                              Asset const& assetBalance)
+{
+    return ls.getLiquidationCandidates(asset1, ratio1, asset2, ratio2, assetBalance);
+}
+
 static void
 acquireOrReleaseLiabilities(AbstractLedgerState& ls,
                             LedgerStateHeader const& header,

@@ -19,7 +19,7 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include <list>
 
-const uint64_t FUNDING_INTERVAL = (60 * 60);      // every hour
+const uint64_t FUNDING_INTERVAL = (60 * 60);     // every hour
 const stellar::int64 BASE_CONVERSION = 10000000; // 10^7
 const stellar::int64 DEPTH_THRESHOLD = 100 * BASE_CONVERSION;
 const double DIFF_THRESHOLD = 0.005;
@@ -52,6 +52,10 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         return false;
     }
 
+    innerResult().code(INFLATION_SUCCESS);
+    lh.inflationSeq++;
+    lh.lastFunding = closeTime;
+    
     for (auto const& tradingPair : app.getConfig().TRADING)
     {
         TradingConfiguration config = tradingPair.second;
@@ -111,9 +115,6 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 
         CLOG(DEBUG, "Tx") << "midPrice " << midOrderbookPrice;
 
-        innerResult().code(INFLATION_SUCCESS);
-        lh.inflationSeq++;
-        lh.lastFunding = closeTime;
         // now credit each account
         auto& payouts = innerResult().payouts();
 

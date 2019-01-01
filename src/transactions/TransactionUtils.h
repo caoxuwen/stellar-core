@@ -46,6 +46,10 @@ Asset makeDebtAsset();
 
 std::vector<LedgerEntry> loadTrustLinesWithDebt(AbstractLedgerState& ls,
                                                 Asset const& asset);
+std::vector<LedgerEntry>
+loadTrustLinesShouldLiquidate(AbstractLedgerState& ls, Asset const& asset1,
+                              double ratio1, Asset const& asset2, double ratio2,
+                              Asset const& assetBalance);
 
 bool isDebtAsset(Asset asset);
 
@@ -123,10 +127,11 @@ uint64_t getStartingSequenceNumber(LedgerStateHeader const& header);
 bool getReferencePrice(AbstractLedgerState& lsouter, std::string feedName,
                        PublicKey& issuerKey, double& result);
 bool getMidOrderbookPrice(AbstractLedgerState& ls, Asset const& coin1,
-                          Asset const& coin2, Asset const& base,
-                          double& result, int64 DEPTH_THRESHOLD);
+                          Asset const& coin2, Asset const& base, double& result,
+                          int64 DEPTH_THRESHOLD);
 bool getAvgOfferPrice(AbstractLedgerState& ls, Asset const& coin1,
-                      Asset const& coin2, Asset const& base, double& result, int64 DEPTH_THRESHOLD);
+                      Asset const& coin2, Asset const& base, double& result,
+                      int64 DEPTH_THRESHOLD);
 
 std::string base64_decode(std::string const& encoded_string);
 

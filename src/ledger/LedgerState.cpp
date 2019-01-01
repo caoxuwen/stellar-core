@@ -557,6 +557,14 @@ LedgerState::getDebtHolders(Asset const& asset)
 {
     return getImpl()->getDebtHolders(asset);
 }
+std::vector<LedgerEntry>
+LedgerState::getLiquidationCandidates(Asset const& asset1, double ratio1,
+                                      Asset const& asset2, double ratio2,
+                                      Asset const& assetBalance)
+{
+    return getImpl()->getLiquidationCandidates(asset1, ratio1, asset2, ratio2,
+                                               assetBalance);
+}
 
 std::map<AccountID, int64_t>
 LedgerState::Impl::getDeltaVotes() const
@@ -696,8 +704,17 @@ LedgerState::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
 std::vector<LedgerEntry>
 LedgerState::Impl::getDebtHolders(Asset const& asset)
 {
-    //TODO: also compute delta from parent
+    // TODO: also compute delta from parent
     return mParent.getDebtHolders(asset);
+}
+
+std::vector<LedgerEntry>
+LedgerState::Impl::getLiquidationCandidates(Asset const& asset1, double ratio1,
+                                            Asset const& asset2, double ratio2,
+                                            Asset const& assetBalance)
+{
+    return mParent.getLiquidationCandidates(asset1, ratio1, asset2, ratio2,
+                                            assetBalance);
 }
 
 std::vector<InflationWinner>
@@ -1551,6 +1568,26 @@ std::vector<LedgerEntry>
 LedgerStateRoot::Impl::getDebtHolders(Asset const& asset)
 {
     return loadDebtHolders(asset);
+}
+
+std::vector<LedgerEntry>
+LedgerStateRoot::getLiquidationCandidates(Asset const& asset1, double ratio1,
+                                          Asset const& asset2, double ratio2,
+                                          Asset const& assetBalance)
+{
+    return mImpl->getLiquidationCandidates(asset1, ratio1, asset2, ratio2,
+                                           assetBalance);
+}
+
+std::vector<LedgerEntry>
+LedgerStateRoot::Impl::getLiquidationCandidates(Asset const& asset1,
+                                                double ratio1,
+                                                Asset const& asset2,
+                                                double ratio2,
+                                                Asset const& assetBalance)
+{
+    return loadLiquidationCandidates(asset1, ratio1, asset2, ratio2,
+                                     assetBalance);
 }
 
 std::shared_ptr<LedgerEntry const>
