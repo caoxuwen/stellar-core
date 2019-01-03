@@ -184,6 +184,11 @@ class LedgerState::Impl
                              Asset const& asset2, double ratio2,
                              Asset const& assetBalance);
 
+    std::vector<LedgerEntry>
+    getLiquidationSubjects(Asset const& asset1, double ratio1,
+                           Asset const& asset2, double ratio2,
+                           Asset const& assetBalance, bool stillEligible);
+
     // getLiveEntries has the strong exception safety guarantee
     std::vector<LedgerEntry> getLiveEntries();
 
@@ -322,6 +327,10 @@ class LedgerStateRoot::Impl
     loadLiquidationCandidates(Asset const& asset1, double ratio1,
                               Asset const& asset2, double ratio2,
                               Asset const& assetBalance) const;
+    std::vector<LedgerEntry> loadLiquidationSubjects(
+        Asset const& asset1, double ratio1, Asset const& asset2, double ratio2,
+        Asset const& assetBalance, bool stillEligible) const;
+
     std::shared_ptr<LedgerEntry const>
     loadTrustLine(LedgerKey const& key) const;
 
@@ -428,6 +437,11 @@ class LedgerStateRoot::Impl
     getLiquidationCandidates(Asset const& asset1, double ratio1,
                              Asset const& asset2, double ratio2,
                              Asset const& assetBalance);
+
+    std::vector<LedgerEntry>
+    getLiquidationSubjects(Asset const& asset1, double ratio1,
+                           Asset const& asset2, double ratio2,
+                           Asset const& assetBalance, bool stillEligible);
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,

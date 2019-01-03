@@ -35,6 +35,7 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
 {
     mPassive = false;
     mMarginTrade = false;
+    mLiquidation = false;
 }
 
 // make sure these issuers exist and you can hold the ask asset
@@ -52,6 +53,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         // don't bother loading trust lines as we're deleting the offer
         return true;
     }
+
+    CLOG(DEBUG, "Tx") << "source id " << KeyUtils::toStrKey(getSourceID());
 
     if (sheep.type() != ASSET_TYPE_NATIVE)
     {
@@ -97,6 +100,17 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
         if (mMarginTrade && stellar::isBaseAssetIssuer(issuer))
             hasBaseAsset = true;
+
+        if (mMarginTrade && sheepLineA.isLiquidating())
+        {
+            metrics
+                .NewMeter(
+                    {"op-manage-offer", "invalid", "asset-in-liquidation"},
+                    "operation")
+                .Mark();
+            innerResult().code(MANAGE_OFFER_SELL_NOT_AUTHORIZED);
+            return false;
+        }
     }
 
     if (wheat.type() != ASSET_TYPE_NATIVE)
@@ -134,6 +148,17 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
         if (mMarginTrade && stellar::isBaseAssetIssuer(issuer))
             hasBaseAsset = true;
+
+        if (mMarginTrade && wheatLineA.isLiquidating())
+        {
+            metrics
+                .NewMeter(
+                    {"op-manage-offer", "invalid", "asset-in-liquidation"},
+                    "operation")
+                .Mark();
+            innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
+            return false;
+        }
     }
 
     if (mMarginTrade)

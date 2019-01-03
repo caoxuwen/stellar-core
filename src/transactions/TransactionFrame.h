@@ -113,6 +113,12 @@ class TransactionFrame
         return mOperations;
     }
 
+    void
+    addOperation(std::shared_ptr<OperationFrame> of)
+    {
+        mOperations.push_back(of);
+    }
+
     TransactionResult const&
     getResult() const
     {

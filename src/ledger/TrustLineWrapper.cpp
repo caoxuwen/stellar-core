@@ -45,6 +45,8 @@ class TrustLineWrapper::NonIssuerImpl : public TrustLineWrapper::AbstractImpl
 
     bool isAuthorized() const override;
 
+    bool isLiquidating() const override;
+
     bool isBaseAsset(AbstractLedgerState& ls) const override;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const override;
@@ -84,6 +86,8 @@ class TrustLineWrapper::IssuerImpl : public TrustLineWrapper::AbstractImpl
                                   int64_t calculatedMaxLiability = 0) override;
 
     bool isAuthorized() const override;
+
+    bool isLiquidating() const override;
 
     bool isBaseAsset(AbstractLedgerState& ls) const override;
 
@@ -215,6 +219,12 @@ TrustLineWrapper::isAuthorized() const
 }
 
 bool
+TrustLineWrapper::isLiquidating() const
+{
+    return getImpl()->isLiquidating();
+}
+
+bool
 TrustLineWrapper::isBaseAsset(AbstractLedgerState& ls) const
 {
     return getImpl()->isBaseAsset(ls);
@@ -342,6 +352,12 @@ TrustLineWrapper::NonIssuerImpl::isAuthorized() const
 }
 
 bool
+TrustLineWrapper::NonIssuerImpl::isLiquidating() const
+{
+    return stellar::isLiquidating(mEntry);
+}
+
+bool
 TrustLineWrapper::NonIssuerImpl::isBaseAsset(AbstractLedgerState& ls) const
 {
     return stellar::isBaseAsset(ls, mEntry);
@@ -454,6 +470,12 @@ TrustLineWrapper::IssuerImpl::isAuthorized() const
 }
 
 bool
+TrustLineWrapper::IssuerImpl::isLiquidating() const
+{
+    return false;
+}
+
+bool
 TrustLineWrapper::IssuerImpl::isBaseAsset(AbstractLedgerState& ls) const
 {
     return false;
@@ -492,6 +514,8 @@ class ConstTrustLineWrapper::NonIssuerImpl
 
     bool isAuthorized() const override;
 
+    bool isLiquidating() const override;
+
     bool isBaseAsset(AbstractLedgerState& ls) const override;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const override;
@@ -514,6 +538,8 @@ class ConstTrustLineWrapper::IssuerImpl
     int64_t getLimit() const override;
 
     bool isAuthorized() const override;
+
+    bool isLiquidating() const override;
 
     bool isBaseAsset(AbstractLedgerState& ls) const override;
 
@@ -594,6 +620,12 @@ ConstTrustLineWrapper::isAuthorized() const
 }
 
 bool
+ConstTrustLineWrapper::isLiquidating() const
+{
+    return getImpl()->isLiquidating();
+}
+
+bool
 ConstTrustLineWrapper::isBaseAsset(AbstractLedgerState& ls) const
 {
     return getImpl()->isBaseAsset(ls);
@@ -660,6 +692,12 @@ ConstTrustLineWrapper::NonIssuerImpl::isAuthorized() const
 }
 
 bool
+ConstTrustLineWrapper::NonIssuerImpl::isLiquidating() const
+{
+    return stellar::isLiquidating(mEntry);
+}
+
+bool
 ConstTrustLineWrapper::NonIssuerImpl::isBaseAsset(AbstractLedgerState& ls) const
 {
     return stellar::isBaseAsset(ls, mEntry);
@@ -714,6 +752,12 @@ bool
 ConstTrustLineWrapper::IssuerImpl::isAuthorized() const
 {
     return true;
+}
+
+bool
+ConstTrustLineWrapper::IssuerImpl::isLiquidating() const
+{
+    return false;
 }
 
 bool

@@ -121,7 +121,17 @@ loadTrustLinesShouldLiquidate(AbstractLedgerState& ls, Asset const& asset1,
                               double ratio1, Asset const& asset2, double ratio2,
                               Asset const& assetBalance)
 {
-    return ls.getLiquidationCandidates(asset1, ratio1, asset2, ratio2, assetBalance);
+    return ls.getLiquidationCandidates(asset1, ratio1, asset2, ratio2,
+                                       assetBalance);
+}
+
+std::vector<LedgerEntry>
+loadTrustLinesUnderLiquidation(AbstractLedgerState& ls, Asset const& asset1,
+                               double ratio1, Asset const& asset2,
+                               double ratio2, Asset const& assetBalance, bool stillEligible)
+{
+    return ls.getLiquidationSubjects(asset1, ratio1, asset2, ratio2,
+                                     assetBalance, false);
 }
 
 static void
@@ -800,6 +810,24 @@ isAuthorized(ConstLedgerStateEntry const& entry)
 }
 
 bool
+isLiquidating(LedgerEntry const& le)
+{
+    return (le.data.trustLine().flags & LIQUIDATION_FLAG) != 0;
+}
+
+bool
+isLiquidating(LedgerStateEntry const& entry)
+{
+    return isLiquidating(entry.current());
+}
+
+bool
+isLiquidating(ConstLedgerStateEntry const& entry)
+{
+    return isLiquidating(entry.current());
+}
+
+bool
 isBaseAsset(AbstractLedgerState& ls, LedgerEntry const& le)
 {
     AccountID issuerID = getIssuer(le.data.trustLine().asset);
@@ -879,6 +907,20 @@ setAuthorized(LedgerStateEntry& entry, bool authorized)
     else
     {
         tl.flags &= ~AUTHORIZED_FLAG;
+    }
+}
+
+void
+setLiquidation(LedgerStateEntry& entry, bool liquidate)
+{
+    auto& tl = entry.current().data.trustLine();
+    if (liquidate)
+    {
+        tl.flags |= LIQUIDATION_FLAG;
+    }
+    else
+    {
+        tl.flags &= ~LIQUIDATION_FLAG;
     }
 }
 

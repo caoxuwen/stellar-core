@@ -465,6 +465,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateMarginOfferOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\CreateLiquidationOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ExchangeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataTests.cpp" />
@@ -694,6 +695,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateMarginOfferOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\CreateLiquidationOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageDataOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\InflationOpFrame.h" />

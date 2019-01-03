@@ -13,14 +13,15 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "overlay/StellarXDR.h"
+#include "transactions/CreateLiquidationOfferOpFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <list>
 
-const uint64_t LIQUIDATION_INTERVAL = (60 * 5);     // every hour
-const time_t INFLATION_START_TIME = (1404172800LL); // 1-jul-2014 (unix epoch)
+// const uint64_t LIQUIDATION_INTERVAL = (60 * 5); // every hour
+const uint64_t LIQUIDATION_INTERVAL = (1); // every hour
 // TODO: change start time
 const stellar::int64 BASE_CONVERSION = 10000000; // 10^7
 const stellar::int64 DEPTH_THRESHOLD = 100 * BASE_CONVERSION;
@@ -86,6 +87,7 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             innerResult().code(LIQUIDATION_NO_REFERENCE_PRICE);
             return false;
         };
+
         CLOG(DEBUG, "Tx") << "refPrice " << refPrice;
 
         Asset coin1;
@@ -105,12 +107,12 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 
         // process trustlines that should fall into liquidation mode
 
-        double price1 = 1, price2 = 1;
+        double price1 = 1.0, price2 = 1.0;
         if (compareAsset(coin1, base))
         {
             price2 = refPrice;
         }
-        else if (compareAsset(coin1, base))
+        else if (compareAsset(coin2, base))
         {
             price1 = refPrice;
         }
@@ -119,23 +121,136 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             // TODO: altcoin perpetual case
         }
 
-        auto trustlines = stellar::loadTrustLinesShouldLiquidate(
-            ls, coin1, price1, coin2, price2, base);
+        CLOG(DEBUG, "Tx") << "coin1 " << config.mCoin1.mName << " " << price1
+                          << " " << config.mCoin2.mName << " " << price2;
 
-        for (auto& trustline : trustlines)
         {
-            TrustLineEntry& tl = trustline.data.trustLine();
-            CLOG(DEBUG, "Tx") << KeyUtils::toStrKey(tl.accountID) << " "
-                              << tl.balance << " " << tl.debt;
+            // mark trustlines that should be liquidated
+            auto trustlines = stellar::loadTrustLinesShouldLiquidate(
+                ls, coin1, price1, coin2, price2, base);
+
+            // LedgerState lsinner(ls);
+
+            for (auto& trustline : trustlines)
+            {
+                TrustLineEntry& tl = trustline.data.trustLine();
+                CLOG(DEBUG, "Tx") << KeyUtils::toStrKey(tl.accountID) << " "
+                                  << tl.balance << " " << tl.debt;
+
+                if (!(tl.flags & LIQUIDATION_FLAG))
+                {
+                    // if haven't marked liquidation
+                    LedgerKey key1(TRUSTLINE);
+                    key1.trustLine().accountID = tl.accountID;
+                    key1.trustLine().asset = coin1;
+
+                    auto trustLineEntry1 = ls.load(key1);
+                    setLiquidation(trustLineEntry1, true);
+
+                    LedgerKey key2(TRUSTLINE);
+                    key2.trustLine().accountID = tl.accountID;
+                    key2.trustLine().asset = coin2;
+
+                    auto trustLineEntry2 = ls.load(key2);
+                    setLiquidation(trustLineEntry2, true);
+                }
+
+                //process liquidation accounts
+                applyCreateLiquidationOffer(app, ls, lh, tl.accountID, coin1, coin2,
+                                       Price(1, 100), 100);
+            }
+            // lsinner.commit();
         }
 
-        // now credit each account
+        {
+            // unmark trustlines that don't need to be liquidated
+            auto trustlines = stellar::loadTrustLinesUnderLiquidation(
+                ls, coin1, price1, coin2, price2, base, false);
+
+            for (auto& trustline : trustlines)
+            {
+                TrustLineEntry& tl = trustline.data.trustLine();
+                CLOG(DEBUG, "Tx") << KeyUtils::toStrKey(tl.accountID) << " "
+                                  << tl.balance << " " << tl.debt;
+
+                LedgerKey key1(TRUSTLINE);
+                key1.trustLine().accountID = tl.accountID;
+                key1.trustLine().asset = coin1;
+
+                auto trustLineEntry1 = ls.load(key1);
+                setLiquidation(trustLineEntry1, false);
+
+                LedgerKey key2(TRUSTLINE);
+                key2.trustLine().accountID = tl.accountID;
+                key2.trustLine().asset = coin2;
+
+                auto trustLineEntry2 = ls.load(key2);
+                setLiquidation(trustLineEntry2, false);
+            }
+        }
+
         // auto& effects = innerResult().effects;
     }
     app.getMetrics()
         .NewMeter({"op-liquidation", "success", "apply"}, "operation")
         .Mark();
     return true;
+}
+
+Operation
+LiquidationOpFrame::createLiquidationOffer(AccountID const& account,
+                                      Asset const& selling, Asset const& buying,
+                                      Price const& price, int64_t amount)
+{
+    Operation op;
+    op.body.type(CREATE_MARGIN_OFFER);
+    op.body.createLiquidationOfferOp().amount = amount;
+    op.body.createLiquidationOfferOp().selling = selling;
+    op.body.createLiquidationOfferOp().buying = buying;
+    op.body.createLiquidationOfferOp().price = price;
+    op.sourceAccount.activate() = account;
+
+    return op;
+}
+
+uint64_t
+LiquidationOpFrame::applyCreateLiquidationOffer(
+    Application& app, AbstractLedgerState& ls, LedgerHeader& lh,
+    AccountID const& accountid, Asset const& selling, Asset const& buying,
+    Price const& price, int64_t amount)
+{
+    auto op = createLiquidationOffer(accountid, selling, buying, price, amount);
+    OperationResult result;
+    result.code(opINNER);
+
+    CreateLiquidationOfferOpFrame frame(op, result, mParentTx);
+    if (!frame.doCheckValid(app, lh.ledgerVersion) || !frame.doApply(app, ls))
+    {
+        if (frame.getResultCode() != opINNER)
+        {
+            throw std::runtime_error(
+                "Unexpected error code from liquidation process");
+        }
+    }
+}
+
+TransactionFramePtr
+LiquidationOpFrame::transactionFromOperations(Application& app,
+                                              SecretKey const& from,
+                                              SequenceNumber seq,
+                                              const std::vector<Operation>& ops)
+{
+    auto e = TransactionEnvelope{};
+    e.tx.sourceAccount = from.getPublicKey();
+    e.tx.fee = static_cast<uint32_t>(
+        (ops.size() * app.getLedgerManager().getLastTxFee()) & UINT32_MAX);
+    e.tx.seqNum = seq;
+    std::copy(std::begin(ops), std::end(ops),
+              std::back_inserter(e.tx.operations));
+
+    auto res = TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
+    res->addSignature(from);
+    return res;
 }
 
 bool

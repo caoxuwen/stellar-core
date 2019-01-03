@@ -138,11 +138,17 @@ class AbstractLedgerStateParent
     // getDebtholders returns all holders of asset debt
     virtual std::vector<LedgerEntry> getDebtHolders(Asset const& asset) = 0;
 
-    // getDebtholders returns all holders of asset debt
+    // getLiquidationCandidates returns all trustlines that should be liquidated
     virtual std::vector<LedgerEntry>
     getLiquidationCandidates(Asset const& asset1, double ratio1,
                              Asset const& asset2, double ratio2,
                              Asset const& assetBalance) = 0;
+
+    // getLiquidationSubjects returns all trustlines undergoing liquidation
+    virtual std::vector<LedgerEntry>
+    getLiquidationSubjects(Asset const& asset1, double ratio1,
+                           Asset const& asset2, double ratio2,
+                           Asset const& assetBalance, bool stillEligible) = 0;
 
     // getNewestVersion finds the newest version of the LedgerEntry associated
     // with the LedgerKey key by checking if there is a version stored in this
@@ -331,6 +337,11 @@ class LedgerState final : public AbstractLedgerState
                              Asset const& asset2, double ratio2,
                              Asset const& assetBalance) override;
 
+    std::vector<LedgerEntry>
+    getLiquidationSubjects(Asset const& asset1, double ratio1,
+                           Asset const& asset2, double ratio2,
+                           Asset const& assetBalance, bool stillEligible) override;
+
     std::vector<LedgerEntry> getLiveEntries() override;
 
     std::shared_ptr<LedgerEntry const>
@@ -408,6 +419,11 @@ class LedgerStateRoot : public AbstractLedgerStateParent
     getLiquidationCandidates(Asset const& asset1, double ratio1,
                              Asset const& asset2, double ratio2,
                              Asset const& assetBalance) override;
+
+    std::vector<LedgerEntry>
+    getLiquidationSubjects(Asset const& asset1, double ratio1,
+                           Asset const& asset2, double ratio2,
+                           Asset const& assetBalance, bool stillEligible) override;
 
     std::shared_ptr<LedgerEntry const>
     getNewestVersion(LedgerKey const& key) const override;

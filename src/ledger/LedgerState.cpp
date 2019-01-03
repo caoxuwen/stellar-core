@@ -557,6 +557,7 @@ LedgerState::getDebtHolders(Asset const& asset)
 {
     return getImpl()->getDebtHolders(asset);
 }
+
 std::vector<LedgerEntry>
 LedgerState::getLiquidationCandidates(Asset const& asset1, double ratio1,
                                       Asset const& asset2, double ratio2,
@@ -564,6 +565,16 @@ LedgerState::getLiquidationCandidates(Asset const& asset1, double ratio1,
 {
     return getImpl()->getLiquidationCandidates(asset1, ratio1, asset2, ratio2,
                                                assetBalance);
+}
+
+std::vector<LedgerEntry>
+LedgerState::getLiquidationSubjects(Asset const& asset1, double ratio1,
+                                    Asset const& asset2, double ratio2,
+                                    Asset const& assetBalance,
+                                    bool stillEligible)
+{
+    return getImpl()->getLiquidationSubjects(asset1, ratio1, asset2, ratio2,
+                                             assetBalance, stillEligible);
 }
 
 std::map<AccountID, int64_t>
@@ -715,6 +726,16 @@ LedgerState::Impl::getLiquidationCandidates(Asset const& asset1, double ratio1,
 {
     return mParent.getLiquidationCandidates(asset1, ratio1, asset2, ratio2,
                                             assetBalance);
+}
+
+std::vector<LedgerEntry>
+LedgerState::Impl::getLiquidationSubjects(Asset const& asset1, double ratio1,
+                                          Asset const& asset2, double ratio2,
+                                          Asset const& assetBalance,
+                                          bool stillEligible)
+{
+    return mParent.getLiquidationSubjects(asset1, ratio1, asset2, ratio2,
+                                          assetBalance, stillEligible);
 }
 
 std::vector<InflationWinner>
@@ -1588,6 +1609,25 @@ LedgerStateRoot::Impl::getLiquidationCandidates(Asset const& asset1,
 {
     return loadLiquidationCandidates(asset1, ratio1, asset2, ratio2,
                                      assetBalance);
+}
+
+std::vector<LedgerEntry>
+LedgerStateRoot::getLiquidationSubjects(Asset const& asset1, double ratio1,
+                                        Asset const& asset2, double ratio2,
+                                        Asset const& assetBalance,
+                                        bool stillEligible)
+{
+    return mImpl->getLiquidationSubjects(asset1, ratio1, asset2, ratio2,
+                                         assetBalance, stillEligible);
+}
+
+std::vector<LedgerEntry>
+LedgerStateRoot::Impl::getLiquidationSubjects(
+    Asset const& asset1, double ratio1, Asset const& asset2, double ratio2,
+    Asset const& assetBalance, bool stillEligible)
+{
+    return loadLiquidationSubjects(asset1, ratio1, asset2, ratio2, assetBalance,
+                                   stillEligible);
 }
 
 std::shared_ptr<LedgerEntry const>

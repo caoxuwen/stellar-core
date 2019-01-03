@@ -13,8 +13,9 @@
 #include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
-#include "transactions/CreatePassiveOfferOpFrame.h"
 #include "transactions/CreateMarginOfferOpFrame.h"
+#include "transactions/CreateLiquidationOfferOpFrame.h"
+#include "transactions/CreatePassiveOfferOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/LiquidationOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
@@ -72,6 +73,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<CreatePassiveOfferOpFrame>(op, res, tx);
     case CREATE_MARGIN_OFFER:
         return std::make_shared<CreateMarginOfferOpFrame>(op, res, tx);
+    case CREATE_LIQUIDATION_OFFER:
+        return std::make_shared<CreateLiquidationOfferOpFrame>(op, res, tx);
     case SET_OPTIONS:
         return std::make_shared<SetOptionsOpFrame>(op, res, tx);
     case CHANGE_TRUST:

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/OperationFrame.h"
+#include "transactions/TransactionFrame.h"
 
 namespace stellar
 {
@@ -20,9 +21,24 @@ class LiquidationOpFrame : public OperationFrame
 
     ThresholdLevel getThresholdLevel() const override;
 
+    Operation createLiquidationOffer(AccountID const& account, Asset const& selling,
+                                Asset const& buying, Price const& price,
+                                int64_t amount);
+
+    TransactionFramePtr
+    transactionFromOperations(Application& app, SecretKey const& from,
+                              SequenceNumber seq,
+                              const std::vector<Operation>& ops);
+
+    uint64_t applyCreateLiquidationOffer(Application& app, AbstractLedgerState& ls,
+                                    LedgerHeader& lh,
+                                    AccountID const& accountid,
+                                    Asset const& selling, Asset const& buying,
+                                    Price const& price, int64_t amount);
+
   public:
     LiquidationOpFrame(Operation const& op, OperationResult& res,
-                     TransactionFrame& parentTx);
+                       TransactionFrame& parentTx);
 
     bool doApply(Application& app, AbstractLedgerState& ls) override;
     bool doCheckValid(Application& app, uint32_t ledgerVersion) override;

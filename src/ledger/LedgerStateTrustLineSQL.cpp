@@ -252,22 +252,127 @@ LedgerStateRoot::Impl::loadLiquidationCandidates(
     TrustLineEntry& tl = le.data.trustLine();
 
     auto prep = mDatabase.getPreparedStatement(
-        "SELECT coin1.accountid, coin1.balance, coin1.flags, coin1.debt, "
-        "coin2.debt "
-        "FROM trustlines as coin1 LEFT JOIN trustlines as coin2 on "
-        "coin1.accountid=coin2.accountid "
+        "SELECT coin1.accountid, coin1.balance, coin1.flags, coin1.debt "
+        "FROM trustlines as coin1 LEFT JOIN trustlines as coin2 ON "
+        "coin1.accountid = coin2.accountid "
         "WHERE coin1.issuer = :issuer1 AND coin1.assetcode = :asset1 "
-        "coin2.issuer = :issuer2 AND coin2.assetcode = :asset2");
+        "AND coin2.issuer = :issuer2 AND coin2.assetcode = :asset2 "
+        "AND coin1.balance::decimal / :r1 + coin2.balance::decimal / :r2 - "
+        "coin1.debt::decimal / :r1 - coin2.debt::decimal / :r2 < 0");
     auto& st = prep.statement();
     st.exchange(soci::into(accountid_str));
-    st.exchange(soci::into(tl.limit));
     st.exchange(soci::into(tl.balance));
     st.exchange(soci::into(tl.flags));
     st.exchange(soci::into(tl.debt));
-    st.exchange(soci::use(issuerStr1));
-    st.exchange(soci::use(assetStr1));
-    st.exchange(soci::use(issuerStr2));
-    st.exchange(soci::use(assetStr2));
+    st.exchange(soci::use(issuerStr1, "issuer1"));
+    st.exchange(soci::use(assetStr1, "asset1"));
+    st.exchange(soci::use(issuerStr2, "issuer2"));
+    st.exchange(soci::use(assetStr2, "asset2"));
+    st.exchange(soci::use(ratio1, "r1"));
+    st.exchange(soci::use(ratio2, "r2"));
+    st.define_and_bind();
+    {
+        auto timer = mDatabase.getSelectTimer("trust");
+        st.execute(true);
+    }
+
+    while (st.got_data())
+    {
+        tl.asset = asset1;
+
+        tl.accountID = KeyUtils::fromStrKey<PublicKey>(accountid_str);
+
+        trustlines.emplace_back(le);
+        st.fetch();
+    }
+
+    return trustlines;
+}
+
+std::vector<LedgerEntry>
+LedgerStateRoot::Impl::loadLiquidationSubjects(
+    Asset const& asset1, double ratio1, Asset const& asset2, double ratio2,
+    Asset const& assetBalance, bool stillEligible) const
+{
+
+    if (asset1.type() == ASSET_TYPE_NATIVE ||
+        asset2.type() == ASSET_TYPE_NATIVE)
+    {
+        throw std::runtime_error("debt holder should not be native asset");
+    }
+
+    std::string issuerStr1, assetStr1;
+    if (asset1.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        assetCodeToStr(asset1.alphaNum4().assetCode, assetStr1);
+        issuerStr1 = KeyUtils::toStrKey(asset1.alphaNum4().issuer);
+    }
+    else if (asset1.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetCodeToStr(asset1.alphaNum12().assetCode, assetStr1);
+        issuerStr1 = KeyUtils::toStrKey(asset1.alphaNum12().issuer);
+    }
+
+    std::string issuerStr2, assetStr2;
+    if (asset2.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        assetCodeToStr(asset2.alphaNum4().assetCode, assetStr2);
+        issuerStr2 = KeyUtils::toStrKey(asset2.alphaNum4().issuer);
+    }
+    else if (asset2.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetCodeToStr(asset2.alphaNum12().assetCode, assetStr2);
+        issuerStr2 = KeyUtils::toStrKey(asset2.alphaNum12().issuer);
+    }
+
+    std::vector<LedgerEntry> trustlines;
+    std::string accountid_str;
+
+    LedgerEntry le;
+    le.data.type(TRUSTLINE);
+    TrustLineEntry& tl = le.data.trustLine();
+
+    std::string statement = "";
+    if (stillEligible)
+    {
+        statement =
+            "SELECT coin1.accountid, coin1.balance, coin1.flags, coin1.debt "
+            "FROM trustlines as coin1 LEFT JOIN trustlines as coin2 ON "
+            "coin1.accountid = coin2.accountid "
+            "WHERE coin1.issuer = :issuer1 AND coin1.assetcode = :asset1 "
+            "AND coin2.issuer = :issuer2 AND coin2.assetcode = :asset2 "
+            "AND coin1.balance::decimal / :r1 + coin2.balance::decimal / :r2 - "
+            "coin1.debt::decimal / :r1 - "
+            "coin2.debt::decimal / :r2 < 0 "
+            "AND (coin1.flags & :f != 0 OR coin2.flags & :f != 0)";
+    }
+    else
+    {
+        statement =
+            "SELECT coin1.accountid, coin1.balance, coin1.flags, coin1.debt "
+            "FROM trustlines as coin1 LEFT JOIN trustlines as coin2 ON "
+            "coin1.accountid = coin2.accountid "
+            "WHERE coin1.issuer = :issuer1 AND coin1.assetcode = :asset1 "
+            "AND coin2.issuer = :issuer2 AND coin2.assetcode = :asset2 "
+            "AND coin1.balance::decimal / :r1 + coin2.balance::decimal / :r2 - "
+            "coin1.debt::decimal / :r1 - "
+            "coin2.debt::decimal / :r2 >= 0 "
+            "AND (coin1.flags & :f != 0 OR coin2.flags & :f != 0)";
+    }
+
+    auto prep = mDatabase.getPreparedStatement(statement);
+    auto& st = prep.statement();
+    st.exchange(soci::into(accountid_str));
+    st.exchange(soci::into(tl.balance));
+    st.exchange(soci::into(tl.flags));
+    st.exchange(soci::into(tl.debt));
+    st.exchange(soci::use(issuerStr1, "issuer1"));
+    st.exchange(soci::use(assetStr1, "asset1"));
+    st.exchange(soci::use(issuerStr2, "issuer2"));
+    st.exchange(soci::use(assetStr2, "asset2"));
+    st.exchange(soci::use(ratio1, "r1"));
+    st.exchange(soci::use(ratio2, "r2"));
+    st.exchange(soci::use((int64_t)LIQUIDATION_FLAG, "f"));
     st.define_and_bind();
     {
         auto timer = mDatabase.getSelectTimer("trust");

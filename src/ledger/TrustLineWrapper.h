@@ -61,6 +61,8 @@ class TrustLineWrapper
 
     bool isAuthorized() const;
 
+    bool isLiquidating() const;
+
     bool isBaseAsset(AbstractLedgerState& ls) const;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const;
@@ -110,6 +112,8 @@ class TrustLineWrapper::AbstractImpl
 
     virtual bool isAuthorized() const = 0;
 
+    virtual bool isLiquidating() const = 0;
+
     virtual bool isBaseAsset(AbstractLedgerState& ls) const = 0;
 
     virtual int64_t
@@ -153,6 +157,8 @@ class ConstTrustLineWrapper
 
     bool isAuthorized() const;
 
+    bool isLiquidating() const;
+
     bool isBaseAsset(AbstractLedgerState& ls) const;
 
     int64_t getAvailableBalance(LedgerStateHeader const& header) const;
@@ -184,6 +190,8 @@ class ConstTrustLineWrapper::AbstractImpl
     virtual int64_t getLimit() const = 0;
 
     virtual bool isAuthorized() const = 0;
+
+    virtual bool isLiquidating() const = 0;
 
     virtual bool isBaseAsset(AbstractLedgerState& ls) const = 0;
 

@@ -51,6 +51,12 @@ loadTrustLinesShouldLiquidate(AbstractLedgerState& ls, Asset const& asset1,
                               double ratio1, Asset const& asset2, double ratio2,
                               Asset const& assetBalance);
 
+std::vector<LedgerEntry>
+loadTrustLinesUnderLiquidation(AbstractLedgerState& ls, Asset const& asset1,
+                               double ratio1, Asset const& asset2,
+                               double ratio2, Asset const& assetBalance,
+                               bool stillEligible);
+
 bool isDebtAsset(Asset asset);
 
 void acquireLiabilities(AbstractLedgerState& ls,
@@ -142,6 +148,10 @@ bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerStateEntry const& entry);
 bool isAuthorized(ConstLedgerStateEntry const& entry);
 
+bool isLiquidating(LedgerEntry const& le);
+bool isLiquidating(LedgerStateEntry const& entry);
+bool isLiquidating(ConstLedgerStateEntry const& entry);
+
 bool isBaseAsset(AbstractLedgerState& ls, LedgerEntry const& le);
 bool isBaseAsset(AbstractLedgerState& ls, LedgerStateEntry const& entry);
 bool isBaseAsset(AbstractLedgerState& ls, ConstLedgerStateEntry const& entry);
@@ -163,4 +173,5 @@ void releaseLiabilities(AbstractLedgerState& ls,
                         int64_t calculatedMaxLiability = 0);
 
 void setAuthorized(LedgerStateEntry& entry, bool authorized);
+void setLiquidation(LedgerStateEntry& entry, bool liquidate);
 }
