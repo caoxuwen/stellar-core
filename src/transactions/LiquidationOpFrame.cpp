@@ -129,7 +129,7 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             auto trustlines = stellar::loadTrustLinesShouldLiquidate(
                 ls, coin1, price1, coin2, price2, base);
 
-            // LedgerState lsinner(ls);
+            //LedgerState lsinner(ls);
 
             for (auto& trustline : trustlines)
             {
@@ -159,7 +159,7 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                 applyCreateLiquidationOffer(app, ls, lh, tl.accountID, coin1, coin2,
                                        Price(1, 100), 100);
             }
-            // lsinner.commit();
+            //lsinner.commit();
         }
 
         {
@@ -203,7 +203,7 @@ LiquidationOpFrame::createLiquidationOffer(AccountID const& account,
                                       Price const& price, int64_t amount)
 {
     Operation op;
-    op.body.type(CREATE_MARGIN_OFFER);
+    op.body.type(CREATE_LIQUIDATION_OFFER);
     op.body.createLiquidationOfferOp().amount = amount;
     op.body.createLiquidationOfferOp().selling = selling;
     op.body.createLiquidationOfferOp().buying = buying;
@@ -222,6 +222,7 @@ LiquidationOpFrame::applyCreateLiquidationOffer(
     auto op = createLiquidationOffer(accountid, selling, buying, price, amount);
     OperationResult result;
     result.code(opINNER);
+    result.tr().type(MANAGE_OFFER);
 
     CreateLiquidationOfferOpFrame frame(op, result, mParentTx);
     if (!frame.doCheckValid(app, lh.ledgerVersion) || !frame.doApply(app, ls))

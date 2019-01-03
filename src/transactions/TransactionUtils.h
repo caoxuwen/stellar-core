@@ -148,6 +148,10 @@ bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerStateEntry const& entry);
 bool isAuthorized(ConstLedgerStateEntry const& entry);
 
+bool isMarginTrade(LedgerEntry const& le);
+bool isMarginTrade(LedgerStateEntry const& entry);
+bool isMarginTrade(ConstLedgerStateEntry const& entry);
+
 bool isLiquidating(LedgerEntry const& le);
 bool isLiquidating(LedgerStateEntry const& entry);
 bool isLiquidating(ConstLedgerStateEntry const& entry);

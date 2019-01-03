@@ -810,6 +810,24 @@ isAuthorized(ConstLedgerStateEntry const& entry)
 }
 
 bool
+isMarginTrade(LedgerEntry const& le)
+{
+    return (le.data.trustLine().flags & MARGIN_FLAG) != 0;
+}
+
+bool
+isMarginTrade(LedgerStateEntry const& entry)
+{
+    return isMarginTrade(entry.current());
+}
+
+bool
+isMarginTrade(ConstLedgerStateEntry const& entry)
+{
+    return isMarginTrade(entry.current());
+}
+
+bool
 isLiquidating(LedgerEntry const& le)
 {
     return (le.data.trustLine().flags & LIQUIDATION_FLAG) != 0;

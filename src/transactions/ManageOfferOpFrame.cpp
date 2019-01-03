@@ -54,10 +54,14 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         return true;
     }
 
-    CLOG(DEBUG, "Tx") << "source id " << KeyUtils::toStrKey(getSourceID());
+    CLOG(DEBUG, "Tx") << "source id " << KeyUtils::toStrKey(getSourceID())
+                      << " " << KeyUtils::toStrKey(getIssuer(sheep));
 
     if (sheep.type() != ASSET_TYPE_NATIVE)
     {
+        CLOG(DEBUG, "Tx") << "source id " << KeyUtils::toStrKey(getSourceID())
+                          << " " << KeyUtils::toStrKey(getIssuer(sheep));
+
         auto sheepLineA = loadTrustLine(ls, getSourceID(), sheep);
         auto issuer = stellar::loadAccount(ls, getIssuer(sheep));
         if (!issuer)
@@ -101,7 +105,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         if (mMarginTrade && stellar::isBaseAssetIssuer(issuer))
             hasBaseAsset = true;
 
-        if (mMarginTrade && sheepLineA.isLiquidating())
+        if (mMarginTrade && !mLiquidation && sheepLineA.isLiquidating())
         {
             metrics
                 .NewMeter(
@@ -149,7 +153,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         if (mMarginTrade && stellar::isBaseAssetIssuer(issuer))
             hasBaseAsset = true;
 
-        if (mMarginTrade && wheatLineA.isLiquidating())
+        if (mMarginTrade && !mLiquidation && wheatLineA.isLiquidating())
         {
             metrics
                 .NewMeter(
@@ -163,6 +167,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
     if (mMarginTrade)
     {
+
         if (wheat.type() == ASSET_TYPE_NATIVE ||
             sheep.type() == ASSET_TYPE_NATIVE)
         {
@@ -328,9 +333,9 @@ ManageOfferOpFrame::computeOfferExchangeParameters(
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
 bool
-ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
+ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 {
-    LedgerState ls(lsOuter);
+    // LedgerState ls = (LedgerState)lsOuter;
 
     if (!checkOfferValid(app.getMetrics(), ls))
     {
@@ -374,6 +379,21 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
         if (header.current().ledgerVersion >= 10)
         {
             releaseLiabilities(ls, header, sellSheepOffer, mMarginTrade, -1);
+        }
+
+        auto sheepLineA =
+            loadTrustLineWithoutRecordIfNotNative(ls, getSourceID(), sellSheepOffer.current().data.offer().selling);
+        auto wheatLineA =
+            loadTrustLineWithoutRecordIfNotNative(ls, getSourceID(), sellSheepOffer.current().data.offer().buying);
+        if (!mLiquidation && (sheepLineA.isLiquidating() || wheatLineA.isLiquidating()))
+        {
+            mLiquidation = true;
+            app.getMetrics()
+                .NewMeter({"op-manage-offer", "invalid", "asset-in-liquidation"},
+                          "operation")
+                .Mark();
+            innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
+            return false;
         }
 
         // WARNING: sellSheepOffer is deleted but sourceAccount is not updated
@@ -490,6 +510,12 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
 
                 if (mMarginTrade)
                 {
+                    if (!mLiquidation && wheatLineA.isLiquidating())
+                    {
+                        // if under liquidation, user cannot modify orders
+                        throw std::runtime_error("cannot modify liquidation");
+                    }
+
                     if (!wheatLineA.addDebt(header, -wheatReceived))
                     {
                         // this would indicate a bug in OfferExchange
@@ -521,6 +547,12 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
 
                 if (mMarginTrade)
                 {
+                    if (!mLiquidation && sheepLineA.isLiquidating())
+                    {
+                        // if under liquidation, user cannot modify orders
+                        throw std::runtime_error("cannot modify liquidation");
+                    }
+
                     if (!sheepLineA.addDebt(header, sheepSent))
                     {
                         // this would indicate a bug in OfferExchange
@@ -639,7 +671,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
     app.getMetrics()
         .NewMeter({"op-create-offer", "success", "apply"}, "operation")
         .Mark();
-    ls.commit();
+    // ls.commit();
     return true;
 }
 

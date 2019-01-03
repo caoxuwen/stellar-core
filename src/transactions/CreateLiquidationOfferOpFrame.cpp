@@ -7,12 +7,12 @@
 namespace stellar
 {
 
-// change from CreateMarginOfferOp to ManageOfferOp
+// change from CreateLiquidationOfferOp to ManageOfferOp
 ManageOfferLiquidationOpHolder::ManageOfferLiquidationOpHolder(Operation const& op)
 {
     mCreateOp.body.type(MANAGE_OFFER);
     auto& manageOffer = mCreateOp.body.manageOfferOp();
-    auto const& createMarginOp = op.body.createMarginOfferOp();
+    auto const& createMarginOp = op.body.createLiquidationOfferOp();
     manageOffer.amount = createMarginOp.amount;
     manageOffer.buying = createMarginOp.buying;
     manageOffer.selling = createMarginOp.selling;

@@ -16,10 +16,10 @@ class ManageOfferLiquidationOpHolder
 };
 
 class CreateLiquidationOfferOpFrame : public ManageOfferLiquidationOpHolder,
-                                 public ManageOfferOpFrame
+                                      public ManageOfferOpFrame
 {
   public:
     CreateLiquidationOfferOpFrame(Operation const& op, OperationResult& res,
-                             TransactionFrame& parentTx);
+                                  TransactionFrame& parentTx);
 };
 }
