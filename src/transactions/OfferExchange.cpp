@@ -86,32 +86,77 @@ canSellAtMostWithMargin(AbstractLedgerState& ls,
                         int64_t leverage)
 {
     // sell A buy B
-    // convert debt and collateral in terms of sheep
+    // convert debt and collateral in terms of A
     int64_t debtA = trustLineA.getDebt();
-    int64_t debtB = trustLineB.getDebt() * price.d /
-                    price.n; // TODO: need to check overflow
+    int64_t debtB = trustLineB.getDebt();
+    debtB = debtB > 0 ? bigDivide(abs(trustLineB.getDebt()), price.d, price.n,
+                                  ROUND_DOWN)
+                      : -bigDivide(abs(trustLineB.getDebt()), price.d, price.n,
+                                   ROUND_DOWN);
+
     int64_t debt = debtA > 0 ? debtA : 0;
     debt += debtB > 0 ? debtB : 0;
 
     int64_t collateral = 0;
+    // default same direction, eg. debtA == debtB == 0
+    bool sameDirection = true;
 
-    // either one of the trustline should be a base asset
     if (trustLineA.isBaseAsset(ls))
     {
-        int64_t balanceA = trustLineA.getAvailableBalance(header);
-
-        collateral = balanceA;
+        // sell A -> short
+        if (debtB > 0)
+        {
+            // owe B -> long
+            sameDirection = false;
+        }
     }
     else if (trustLineB.isBaseAsset(ls))
     {
-        int64_t balanceB = trustLineB.getAvailableBalance(header);
-
-        collateral = balanceB * price.d / price.n;
+        // buy B -> long
+        if (debtA < 0)
+        {
+            // have asset in A -> short
+            sameDirection = false;
+        }
+    }
+    else
+    {
+        // should not get here
+        throw std::runtime_error("no base asset");
     }
 
-    if (collateral * leverage >= debt)
+    if (sameDirection)
     {
-        return collateral * leverage - debt;
+        // same direction, compute available margin
+        if (trustLineA.isBaseAsset(ls))
+        {
+            int64_t balanceA = trustLineA.getAvailableBalance(header);
+
+            collateral = balanceA;
+        }
+        else if (trustLineB.isBaseAsset(ls))
+        {
+            int64_t balanceB = trustLineB.getAvailableBalance(header);
+
+            collateral = bigDivide(balanceB, price.d, price.n, ROUND_DOWN);
+        }
+
+        if (collateral * leverage >= debt)
+        {
+            return collateral * leverage - debt;
+        }
+    }
+    else
+    {
+        // opposite direction, can sell at most asset
+        if (debtA < 0)
+        {
+            return -debtA;
+        }
+        else if (debtB < 0)
+        {
+            return -debtB;
+        }
     }
 
     return 0;
@@ -125,32 +170,77 @@ canSellAtMostWithMargin(AbstractLedgerState& ls,
                         int64_t leverage)
 {
     // sell A buy B
-    // convert debt and collateral in terms of sheep
+    // convert debt and collateral in terms of A
     int64_t debtA = trustLineA.getDebt();
-    int64_t debtB = trustLineB.getDebt() * price.d /
-                    price.n; // TODO: need to check overflow
+    int64_t debtB = trustLineB.getDebt();
+    debtB = debtB > 0 ? bigDivide(abs(trustLineB.getDebt()), price.d, price.n,
+                                  ROUND_DOWN)
+                      : -bigDivide(abs(trustLineB.getDebt()), price.d, price.n,
+                                   ROUND_DOWN);
+
     int64_t debt = debtA > 0 ? debtA : 0;
     debt += debtB > 0 ? debtB : 0;
-    
-    int64_t collateral = 0;
 
-    // either one of the trustline should be a base asset
+    int64_t collateral = 0;
+    // default same direction, eg. debtA == debtB == 0
+    bool sameDirection = true;
+
     if (trustLineA.isBaseAsset(ls))
     {
-        int64_t balanceA = trustLineA.getAvailableBalance(header);
-
-        collateral = balanceA;
+        // sell A -> short
+        if (debtB > 0)
+        {
+            // owe B -> long
+            sameDirection = false;
+        }
     }
     else if (trustLineB.isBaseAsset(ls))
     {
-        int64_t balanceB = trustLineB.getAvailableBalance(header);
-
-        collateral = balanceB * price.d / price.n;
+        // buy B -> long
+        if (debtA < 0)
+        {
+            // have asset in A -> short
+            sameDirection = false;
+        }
+    }
+    else
+    {
+        // should not get here
+        throw std::runtime_error("no base asset");
     }
 
-    if (collateral * leverage >= debt)
+    if (sameDirection)
     {
-        return collateral * leverage - debt;
+        // same direction, compute available margin
+        if (trustLineA.isBaseAsset(ls))
+        {
+            int64_t balanceA = trustLineA.getAvailableBalance(header);
+
+            collateral = balanceA;
+        }
+        else if (trustLineB.isBaseAsset(ls))
+        {
+            int64_t balanceB = trustLineB.getAvailableBalance(header);
+
+            collateral = bigDivide(balanceB, price.d, price.n, ROUND_DOWN);
+        }
+
+        if (collateral * leverage >= debt)
+        {
+            return collateral * leverage - debt;
+        }
+    }
+    else
+    {
+        // opposite direction, can sell at most asset
+        if (debtA < 0)
+        {
+            return -debtA;
+        }
+        else if (debtB < 0)
+        {
+            return -debtB;
+        }
     }
 
     return 0;

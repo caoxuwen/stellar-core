@@ -148,6 +148,9 @@ struct CreateLiquidationOfferOp
     Asset buying;  // B
     int64 amount;  // amount taker gets. if set to 0, delete the offer
     Price price;   // cost of A in terms of B
+
+    // 0=create a new offer, otherwise edit an existing offer
+    uint64 offerID;
 };
 
 /* Set Account Options

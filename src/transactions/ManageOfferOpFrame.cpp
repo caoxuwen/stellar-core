@@ -275,7 +275,10 @@ ManageOfferOpFrame::computeOfferExchangeParameters(
             int64_t maxSell = canSellAtMostWithMargin(
                 ls, header, sheepLineA, wheatLineA, offer.price, maxLeverage);
 
-            if (maxSell <= offer.amount)
+            CLOG(DEBUG, "Tx")
+                << "maxsell " << maxSell << " " << offer.amount;
+
+            if (maxSell < offer.amount)
             {
                 app.getMetrics()
                     .NewMeter(
@@ -381,16 +384,18 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             releaseLiabilities(ls, header, sellSheepOffer, mMarginTrade, -1);
         }
 
-        auto sheepLineA =
-            loadTrustLineWithoutRecordIfNotNative(ls, getSourceID(), sellSheepOffer.current().data.offer().selling);
-        auto wheatLineA =
-            loadTrustLineWithoutRecordIfNotNative(ls, getSourceID(), sellSheepOffer.current().data.offer().buying);
-        if (!mLiquidation && (sheepLineA.isLiquidating() || wheatLineA.isLiquidating()))
+        auto sheepLineA = loadTrustLineWithoutRecordIfNotNative(
+            ls, getSourceID(), sellSheepOffer.current().data.offer().selling);
+        auto wheatLineA = loadTrustLineWithoutRecordIfNotNative(
+            ls, getSourceID(), sellSheepOffer.current().data.offer().buying);
+        if (mMarginTrade && !mLiquidation &&
+            (sheepLineA.isLiquidating() || wheatLineA.isLiquidating()))
         {
             mLiquidation = true;
             app.getMetrics()
-                .NewMeter({"op-manage-offer", "invalid", "asset-in-liquidation"},
-                          "operation")
+                .NewMeter(
+                    {"op-manage-offer", "invalid", "asset-in-liquidation"},
+                    "operation")
                 .Mark();
             innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
             return false;

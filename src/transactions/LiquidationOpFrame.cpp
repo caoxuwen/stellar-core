@@ -25,6 +25,7 @@ const uint64_t LIQUIDATION_INTERVAL = (1); // every hour
 // TODO: change start time
 const stellar::int64 BASE_CONVERSION = 10000000; // 10^7
 const stellar::int64 DEPTH_THRESHOLD = 100 * BASE_CONVERSION;
+const stellar::int64 PRICE_MULTIPLE = 10000;
 const double DIFF_THRESHOLD = 0.005;
 const double MAX_DIFF_THRESHOLD = 0.1;
 
@@ -129,7 +130,7 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             auto trustlines = stellar::loadTrustLinesShouldLiquidate(
                 ls, coin1, price1, coin2, price2, base);
 
-            //LedgerState lsinner(ls);
+            // LedgerState lsinner(ls);
 
             for (auto& trustline : trustlines)
             {
@@ -137,29 +138,85 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                 CLOG(DEBUG, "Tx") << KeyUtils::toStrKey(tl.accountID) << " "
                                   << tl.balance << " " << tl.debt;
 
+                LedgerKey key1(TRUSTLINE);
+                key1.trustLine().accountID = tl.accountID;
+                key1.trustLine().asset = coin1;
+                auto trustLineEntry1 = ls.load(key1);
+
+                LedgerKey key2(TRUSTLINE);
+                key2.trustLine().accountID = tl.accountID;
+                key2.trustLine().asset = coin2;
+                auto trustLineEntry2 = ls.load(key2);
+
                 if (!(tl.flags & LIQUIDATION_FLAG))
                 {
                     // if haven't marked liquidation
-                    LedgerKey key1(TRUSTLINE);
-                    key1.trustLine().accountID = tl.accountID;
-                    key1.trustLine().asset = coin1;
-
-                    auto trustLineEntry1 = ls.load(key1);
                     setLiquidation(trustLineEntry1, true);
-
-                    LedgerKey key2(TRUSTLINE);
-                    key2.trustLine().accountID = tl.accountID;
-                    key2.trustLine().asset = coin2;
-
-                    auto trustLineEntry2 = ls.load(key2);
                     setLiquidation(trustLineEntry2, true);
                 }
 
-                //process liquidation accounts
-                applyCreateLiquidationOffer(app, ls, lh, tl.accountID, coin1, coin2,
-                                       Price(1, 100), 100);
+                auto tl1 = trustLineEntry1.current().data.trustLine();
+                auto tl2 = trustLineEntry2.current().data.trustLine();
+
+                Price price(PRICE_MULTIPLE, PRICE_MULTIPLE);
+                // price = n / d
+                try
+                {
+                    // n if coin1 is base as two decimal usually enough for coin
+                    if (compareAsset(coin1, base))
+                    {
+                        price.n = bigDivide(
+                            abs(tl2.debt - tl2.balance), PRICE_MULTIPLE,
+                            abs(tl1.balance - tl1.debt), ROUND_DOWN);
+                    }
+                    else if (compareAsset(coin2, base))
+                    {
+                        price.d = bigDivide(
+                            abs(tl1.balance - tl1.debt), PRICE_MULTIPLE,
+                            abs(tl2.debt - tl2.balance), ROUND_DOWN);
+                    }
+                    else
+                    {
+                        // TODO: altcoin perpetual case
+                    }
+                }
+                catch (...)
+                {
+                    // if overflowed, use ref price instead
+                    if (compareAsset(coin1, base))
+                    {
+                        price.d =
+                            (stellar::int32)floor(refPrice * PRICE_MULTIPLE);
+                    }
+                    else if (compareAsset(coin2, base))
+                    {
+                        price.n =
+                            (stellar::int32)floor(refPrice * PRICE_MULTIPLE);
+                    }
+                    else
+                    {
+                        // TODO: altcoin perpetual case
+                    }
+                }
+
+                // process liquidation accounts
+                if (tl1.debt > 0)
+                {
+                    // either coin1 debt > 0 or coin2 debt > 0
+                    // need to repay all debt
+                    // tl.debt == coin1.debt
+                    applyCreateLiquidationOffer(app, ls, lh, tl.accountID,
+                                                coin2, coin1, price, -tl2.debt);
+                }
+                else if (tl2.debt > 0)
+                {
+                    std::swap(price.n, price.d);
+
+                    applyCreateLiquidationOffer(app, ls, lh, tl.accountID,
+                                                coin1, coin2, price, -tl1.debt);
+                }
             }
-            //lsinner.commit();
+            // lsinner.commit();
         }
 
         {
@@ -199,8 +256,9 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 
 Operation
 LiquidationOpFrame::createLiquidationOffer(AccountID const& account,
-                                      Asset const& selling, Asset const& buying,
-                                      Price const& price, int64_t amount)
+                                           Asset const& selling,
+                                           Asset const& buying,
+                                           Price const& price, int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_LIQUIDATION_OFFER);
@@ -208,17 +266,83 @@ LiquidationOpFrame::createLiquidationOffer(AccountID const& account,
     op.body.createLiquidationOfferOp().selling = selling;
     op.body.createLiquidationOfferOp().buying = buying;
     op.body.createLiquidationOfferOp().price = price;
+    op.body.createLiquidationOfferOp().offerID = 0;
+
     op.sourceAccount.activate() = account;
 
     return op;
 }
 
-uint64_t
+Operation
+LiquidationOpFrame::createCancelOffer(AccountID const& account, uint64 offerID,
+                                      Asset const& selling, Asset const& buying,
+                                      Price const& price)
+{
+    Operation op;
+    op.body.type(CREATE_LIQUIDATION_OFFER);
+    op.body.createLiquidationOfferOp().offerID = offerID;
+    op.body.createLiquidationOfferOp().selling = selling;
+    op.body.createLiquidationOfferOp().buying = buying;
+    op.body.createLiquidationOfferOp().price = price;
+    op.body.createLiquidationOfferOp().amount = 0;
+
+    op.sourceAccount.activate() = account;
+
+    return op;
+}
+
+bool
 LiquidationOpFrame::applyCreateLiquidationOffer(
     Application& app, AbstractLedgerState& ls, LedgerHeader& lh,
     AccountID const& accountid, Asset const& selling, Asset const& buying,
     Price const& price, int64_t amount)
 {
+    // check if one qualified offer exist
+    auto offers = ls.getOffersByAccountAndAsset(accountid, selling);
+    bool hasQualifiedOffer = false;
+    if (offers.size() == 1)
+    {
+        for (auto const& x : offers)
+        {
+            LedgerEntry le = x.second;
+            if (compareAsset(le.data.offer().selling, selling) &&
+                compareAsset(le.data.offer().buying, buying) &&
+                le.data.offer().amount == amount &&
+                le.data.offer().price == price)
+                hasQualifiedOffer = true;
+        }
+    }
+
+    if (hasQualifiedOffer)
+    {
+        return true;
+    }
+
+    // no qualified offer, cancel all exisitng offers
+    for (auto const& x : offers)
+    {
+        LedgerEntry le = x.second;
+
+        OperationResult result;
+        result.code(opINNER);
+        result.tr().type(MANAGE_OFFER);
+
+        auto op = createCancelOffer(
+            accountid, le.data.offer().offerID, le.data.offer().selling,
+            le.data.offer().buying, le.data.offer().price);
+        CreateLiquidationOfferOpFrame frame(op, result, mParentTx);
+
+        if (!frame.doCheckValid(app, lh.ledgerVersion) ||
+            !frame.doApply(app, ls))
+        {
+            if (frame.getResultCode() != opINNER)
+            {
+                throw std::runtime_error(
+                    "Unexpected error code from liquidation process");
+            }
+        }
+    }
+
     auto op = createLiquidationOffer(accountid, selling, buying, price, amount);
     OperationResult result;
     result.code(opINNER);
@@ -233,6 +357,8 @@ LiquidationOpFrame::applyCreateLiquidationOffer(
                 "Unexpected error code from liquidation process");
         }
     }
+
+    return true;
 }
 
 TransactionFramePtr

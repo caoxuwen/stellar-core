@@ -12,12 +12,12 @@ ManageOfferLiquidationOpHolder::ManageOfferLiquidationOpHolder(Operation const& 
 {
     mCreateOp.body.type(MANAGE_OFFER);
     auto& manageOffer = mCreateOp.body.manageOfferOp();
-    auto const& createMarginOp = op.body.createLiquidationOfferOp();
-    manageOffer.amount = createMarginOp.amount;
-    manageOffer.buying = createMarginOp.buying;
-    manageOffer.selling = createMarginOp.selling;
-    manageOffer.offerID = 0;
-    manageOffer.price = createMarginOp.price;
+    auto const& createLiquidationOp = op.body.createLiquidationOfferOp();
+    manageOffer.amount = createLiquidationOp.amount;
+    manageOffer.buying = createLiquidationOp.buying;
+    manageOffer.selling = createLiquidationOp.selling;
+    manageOffer.offerID = createLiquidationOp.offerID;
+    manageOffer.price = createLiquidationOp.price;
     mCreateOp.sourceAccount = op.sourceAccount;
 }
 

@@ -21,20 +21,23 @@ class LiquidationOpFrame : public OperationFrame
 
     ThresholdLevel getThresholdLevel() const override;
 
-    Operation createLiquidationOffer(AccountID const& account, Asset const& selling,
-                                Asset const& buying, Price const& price,
-                                int64_t amount);
+    Operation createLiquidationOffer(AccountID const& account,
+                                     Asset const& selling, Asset const& buying,
+                                     Price const& price, int64_t amount);
+    Operation createCancelOffer(AccountID const& account, uint64 offerID,
+                                Asset const& selling, Asset const& buying,
+                                Price const& price);
 
     TransactionFramePtr
     transactionFromOperations(Application& app, SecretKey const& from,
                               SequenceNumber seq,
                               const std::vector<Operation>& ops);
 
-    uint64_t applyCreateLiquidationOffer(Application& app, AbstractLedgerState& ls,
-                                    LedgerHeader& lh,
-                                    AccountID const& accountid,
-                                    Asset const& selling, Asset const& buying,
-                                    Price const& price, int64_t amount);
+    bool applyCreateLiquidationOffer(Application& app, AbstractLedgerState& ls,
+                                     LedgerHeader& lh,
+                                     AccountID const& accountid,
+                                     Asset const& selling, Asset const& buying,
+                                     Price const& price, int64_t amount);
 
   public:
     LiquidationOpFrame(Operation const& op, OperationResult& res,
