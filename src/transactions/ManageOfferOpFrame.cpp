@@ -275,8 +275,7 @@ ManageOfferOpFrame::computeOfferExchangeParameters(
             int64_t maxSell = canSellAtMostWithMargin(
                 ls, header, sheepLineA, wheatLineA, offer.price, maxLeverage);
 
-            CLOG(DEBUG, "Tx")
-                << "maxsell " << maxSell << " " << offer.amount;
+            CLOG(DEBUG, "Tx") << "maxsell " << maxSell << " " << offer.amount;
 
             if (maxSell < offer.amount)
             {
@@ -488,7 +487,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                           << " sheepsent " << sheepSent << " wheatreceived "
                           << wheatReceived << " stays?" << sheepStays;
 
-        //            << mCurr->getEntries().size() << " elements";
+        // << mCurr->getEntries().size() << " elements";
         // updates the result with the offers that got taken on the way
         for (auto const& oatom : offerTrail)
         {
@@ -580,7 +579,8 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                 auto sheepLineA = loadTrustLine(ls, getSourceID(), sheep);
                 auto wheatLineA = loadTrustLine(ls, getSourceID(), wheat);
 
-                if (!settleProfitLoss(ls, header, sheepLineA, wheatLineA))
+                if (!settleProfitLoss(ls, header, sheepLineA, wheatLineA,
+                                      newOffer.data.offer().price))
                 {
                     throw std::runtime_error("cannot modify debt");
                 }
@@ -612,7 +612,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                 int64_t wheatReceiveLimit =
                     canBuyAtMost(header, sourceAccount, wheat, wheatLineA);
                 oe.amount =
-                    adjustOffer(oe.price, sheepSendLimit, wheatReceiveLimit);
+                    adjustOffer(oe.price, sheepSendLimit, wheatReceiveLimit, mLiquidation);
             }
             else
             {

@@ -94,13 +94,12 @@ ExchangeResultV10 applyPriceErrorThresholds(Price price, int64_t wheatReceive,
                                             int64_t sheepSend, bool wheatStays,
                                             bool isPathPayment);
 
-bool
-settleProfitLoss(AbstractLedgerState& ls, LedgerStateHeader const& header,
-                 TrustLineWrapper& sheepLineAccountB,
-                 TrustLineWrapper& wheatLineAccountB);
+bool settleProfitLoss(AbstractLedgerState& ls, LedgerStateHeader const& header,
+                      TrustLineWrapper& sheepLineAccountB,
+                      TrustLineWrapper& wheatLineAccountB, Price const& price);
 
 int64_t adjustOffer(Price const& price, int64_t maxWheatSend,
-                    int64_t maxSheepReceive);
+                    int64_t maxSheepReceive, bool isPathPayment = false);
 
 bool checkPriceErrorBound(Price price, int64_t wheatReceive, int64_t sheepSend,
                           bool canFavorWheat);

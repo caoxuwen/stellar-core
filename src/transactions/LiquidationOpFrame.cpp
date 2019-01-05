@@ -21,7 +21,7 @@
 #include <list>
 
 const uint64_t LIQUIDATION_INTERVAL = (60 * 5); // every 5 mins
-// const uint64_t LIQUIDATION_INTERVAL = (1); // every hour
+//const uint64_t LIQUIDATION_INTERVAL = (1); // every hour
 // TODO: change start time
 const stellar::int64 BASE_CONVERSION = 10000000; // 10^7
 const stellar::int64 DEPTH_THRESHOLD = 100 * BASE_CONVERSION;
@@ -160,6 +160,9 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 
                 Price price(PRICE_MULTIPLE, PRICE_MULTIPLE);
                 // price = n / d
+                // there's a requirement that amount * price.n / price.d is also an integar
+                // other adjustOffer in exchange will change the amount
+                // in that case debt might not be completely repaid
                 try
                 {
                     // n if coin1 is base as two decimal usually enough for coin
@@ -333,6 +336,8 @@ LiquidationOpFrame::applyCreateLiquidationOffer(
     AccountID const& accountid, Asset const& selling, Asset const& buying,
     Price const& price, int64_t amount, bool justCancel)
 {
+    CLOG(DEBUG, "Tx") << "input " << amount << " " << price.n << " " << price.d;
+
     // check if one qualified offer exist
     auto offers = ls.getOffersByAccountAndAsset(accountid, selling);
     bool hasQualifiedOffer = false;
@@ -341,10 +346,15 @@ LiquidationOpFrame::applyCreateLiquidationOffer(
         for (auto const& x : offers)
         {
             LedgerEntry le = x.second;
+            CLOG(DEBUG, "Tx")
+                << "compare " << le.data.offer().amount << " " << amount << " "
+                << le.data.offer().price.n << " " << price.n << " "
+                << le.data.offer().price.d << " " << price.d;
             if (compareAsset(le.data.offer().selling, selling) &&
                 compareAsset(le.data.offer().buying, buying) &&
                 le.data.offer().amount == amount &&
-                le.data.offer().price == price)
+                le.data.offer().price.n == price.n &&
+                le.data.offer().price.d == price.d)
                 hasQualifiedOffer = true;
         }
     }
@@ -359,14 +369,14 @@ LiquidationOpFrame::applyCreateLiquidationOffer(
     {
         LedgerEntry le = x.second;
 
-        OperationResult result;
-        result.code(opINNER);
-        result.tr().type(MANAGE_OFFER);
+        OperationResult cancelresult;
+        cancelresult.code(opINNER);
+        cancelresult.tr().type(MANAGE_OFFER);
 
-        auto op = createCancelOffer(
+        auto cancel_op = createCancelOffer(
             accountid, le.data.offer().offerID, le.data.offer().selling,
             le.data.offer().buying, le.data.offer().price);
-        CreateLiquidationOfferOpFrame frame(op, result, mParentTx);
+        CreateLiquidationOfferOpFrame frame(cancel_op, cancelresult, mParentTx);
 
         if (!frame.doCheckValid(app, lh.ledgerVersion) ||
             !frame.doApply(app, ls))
@@ -386,12 +396,12 @@ LiquidationOpFrame::applyCreateLiquidationOffer(
         return true;
     }
 
-    auto op = createLiquidationOffer(accountid, selling, buying, price, amount);
-    OperationResult result;
-    result.code(opINNER);
-    result.tr().type(MANAGE_OFFER);
+    auto create_op = createLiquidationOffer(accountid, selling, buying, price, amount);
+    OperationResult createresult;
+    createresult.code(opINNER);
+    createresult.tr().type(MANAGE_OFFER);
 
-    CreateLiquidationOfferOpFrame frame(op, result, mParentTx);
+    CreateLiquidationOfferOpFrame frame(create_op, createresult, mParentTx);
     if (!frame.doCheckValid(app, lh.ledgerVersion) || !frame.doApply(app, ls))
     {
         if (frame.getResultCode() != opINNER)

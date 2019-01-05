@@ -678,7 +678,7 @@ exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
     }
     else
     {
-        if (price.n > price.d) // Wheat is more valuable
+        if (price.n > price.d || isPathPayment) // Wheat is more valuable
         {
             wheatReceive = bigDivide(wheatValue, price.n, ROUND_DOWN);
             sheepSend = bigDivide(wheatReceive, price.n, price.d, ROUND_DOWN);
@@ -786,7 +786,8 @@ adjustOffer(AbstractLedgerState& ls, LedgerStateHeader const& header,
             : std::min({oe.amount,
                         canSellAtMost(header, account, wheat, wheatLine)});
     int64_t maxSheepReceive = canBuyAtMost(header, account, sheep, sheepLine);
-    oe.amount = adjustOffer(oe.price, maxWheatSend, maxSheepReceive);
+    bool isPathPayment = wheatLine.isLiquidating() || sheepLine.isLiquidating();
+    oe.amount = adjustOffer(oe.price, maxWheatSend, maxSheepReceive, isPathPayment);
 }
 
 // The central property of adjustOffer is that it has no effect when applied to
@@ -915,10 +916,10 @@ adjustOffer(AbstractLedgerState& ls, LedgerStateHeader const& header,
 //                   = wheatReceive
 // so we conclude that the adjusted offer is not modified by adjustOffer.
 int64_t
-adjustOffer(Price const& price, int64_t maxWheatSend, int64_t maxSheepReceive)
+adjustOffer(Price const& price, int64_t maxWheatSend, int64_t maxSheepReceive, bool isPathPayment)
 {
     auto res = exchangeV10(price, maxWheatSend, INT64_MAX, INT64_MAX,
-                           maxSheepReceive, false);
+                           maxSheepReceive, isPathPayment);
     return res.numWheatReceived;
 }
 
@@ -1148,8 +1149,9 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 
     // As of the protocol version 10, this call to adjustOffer should have no
     // effect. We leave it here only as a preventative measure.
+    /*
     adjustOffer(ls, header, sellingWheatOffer, accountB, wheat,
-                wheatLineAccountB, sheep, sheepLineAccountB, isMarginTrade);
+                wheatLineAccountB, sheep, sheepLineAccountB, isMarginTrade);*/
 
     int64_t maxWheatSend =
         isMarginTrade
@@ -1229,7 +1231,8 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 
     if (isMarginTrade)
     {
-        if (!settleProfitLoss(ls, header, sheepLineAccountB, wheatLineAccountB))
+        if (!settleProfitLoss(ls, header, wheatLineAccountB, sheepLineAccountB,
+                              offer.price))
         {
             throw std::runtime_error("cannot modify debt");
         }
@@ -1278,42 +1281,77 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 
 bool
 settleProfitLoss(AbstractLedgerState& ls, LedgerStateHeader const& header,
-                 TrustLineWrapper& sheepLineAccountB,
-                 TrustLineWrapper& wheatLineAccountB)
+                 TrustLineWrapper& sellLineAccount,
+                 TrustLineWrapper& buyLineAccount, Price const& price)
 {
+    // price is sell sellLine buy buyLine price
     // realize profit/loss
-    int64_t sheepDebt = sheepLineAccountB.getDebt();
-    int64_t wheatDebt = wheatLineAccountB.getDebt();
+    int64_t sheepDebt = sellLineAccount.getDebt();
+    int64_t wheatDebt = buyLineAccount.getDebt();
 
     if ((sheepDebt >= 0 && wheatDebt >= 0) ||
         (sheepDebt <= 0 && wheatDebt <= 0))
     {
-        if (sheepLineAccountB.isBaseAsset(ls))
+        if (sellLineAccount.isBaseAsset(ls))
         {
-            if (!sheepLineAccountB.addDebt(header, -sheepDebt))
+            int64_t wheatDebtInSheep =
+                wheatDebt > 0
+                    ? bigDivide(wheatDebt, price.d, price.n, ROUND_DOWN)
+                    : -bigDivide(-wheatDebt, price.d, price.n, ROUND_DOWN);
+
+            if (!sellLineAccount.addDebt(header, -sheepDebt))
             {
                 throw std::runtime_error(
                     "realize profit/loss cannot modify debt");
             }
 
-            if (!sheepLineAccountB.addBalance(header, -sheepDebt))
+            if (!sellLineAccount.addBalance(header, -sheepDebt))
             {
                 throw std::runtime_error(
                     "realize profit/loss cannot modify balance");
+            }
+
+            if (!buyLineAccount.addDebt(header, -wheatDebt))
+            {
+                throw std::runtime_error(
+                    "realize profit/loss cannot modify non-base debt");
+            }
+
+            if (!sellLineAccount.addBalance(header, -wheatDebtInSheep))
+            {
+                throw std::runtime_error(
+                    "realize profit/loss cannot add profit/loss");
             }
         }
-        else if (wheatLineAccountB.isBaseAsset(ls))
+        else if (buyLineAccount.isBaseAsset(ls))
         {
-            if (!wheatLineAccountB.addDebt(header, -wheatDebt))
+            int64_t sheepDebtInWheat =
+                sheepDebt > 0
+                    ? bigDivide(sheepDebt, price.n, price.d, ROUND_DOWN)
+                    : -bigDivide(-sheepDebt, price.n, price.d, ROUND_DOWN);
+
+            if (!buyLineAccount.addDebt(header, -wheatDebt))
             {
                 throw std::runtime_error(
                     "realize profit/loss cannot modify debt");
             }
 
-            if (!wheatLineAccountB.addBalance(header, -wheatDebt))
+            if (!buyLineAccount.addBalance(header, -wheatDebt))
             {
                 throw std::runtime_error(
                     "realize profit/loss cannot modify balance");
+            }
+
+            if (!sellLineAccount.addDebt(header, -sheepDebt))
+            {
+                throw std::runtime_error(
+                    "realize profit/loss cannot modify non-base debt");
+            }
+
+            if (!buyLineAccount.addBalance(header, -sheepDebtInWheat))
+            {
+                throw std::runtime_error(
+                    "realize profit/loss cannot add profit/loss");
             }
         }
         else

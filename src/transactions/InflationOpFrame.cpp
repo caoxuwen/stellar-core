@@ -166,6 +166,9 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                 }
 
                 // conservation of collateral
+                // not conserved through funding, due to realized profit/loss
+                // but note still conserved if collateral is invovled
+                /*
                 if (debt_total != 0)
                 {
                     app.getMetrics()
@@ -174,7 +177,7 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                         .Mark();
                     innerResult().code(INFLATION_DEBT_NOT_ZERO);
                     return false;
-                }
+                }*/
 
                 // if there's a mistake, not change is committed
                 lsinner.commit();
