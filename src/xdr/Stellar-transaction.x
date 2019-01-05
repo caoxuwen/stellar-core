@@ -704,7 +704,8 @@ enum LiquidationResultCode
     LIQUIDATION_SUCCESS = 0,
     // codes considered as "failure" for the operation
     LIQUIDATION_NOT_TIME = -1,
-    LIQUIDATION_NO_REFERENCE_PRICE = -2
+    LIQUIDATION_NO_REFERENCE_PRICE = -2,
+    LIQUIDATION_PROCESS_ERROR = -3
 };
 
 struct LiquidationEffect // or use PaymentResultAtom to limit types?

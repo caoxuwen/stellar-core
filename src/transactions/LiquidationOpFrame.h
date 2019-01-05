@@ -37,7 +37,8 @@ class LiquidationOpFrame : public OperationFrame
                                      LedgerHeader& lh,
                                      AccountID const& accountid,
                                      Asset const& selling, Asset const& buying,
-                                     Price const& price, int64_t amount);
+                                     Price const& price, int64_t amount,
+                                     bool justCancel);
 
   public:
     LiquidationOpFrame(Operation const& op, OperationResult& res,
