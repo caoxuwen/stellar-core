@@ -77,7 +77,7 @@ LiquidationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 
         // TODO: replace config.mReferenceFeed with highest voted key
         // through a mechanism similar to inflation destination
-        double refPrice;
+        double refPrice = 1.;
         if (!getReferencePrice(ls, config.mReferenceFeed.mName,
                                config.mReferenceFeed.mIssuerKey, refPrice))
         {

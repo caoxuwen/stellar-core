@@ -780,7 +780,7 @@ getReferencePrice(AbstractLedgerState& lsouter, std::string feedName,
             // CLOG(DEBUG, "Tx") << base64_str << " " << res_str;
 
             result = std::stod(res_str);
-            return result;
+            return false;
         }
         catch (...)
         {
