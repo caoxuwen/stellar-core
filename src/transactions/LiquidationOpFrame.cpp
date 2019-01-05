@@ -20,8 +20,8 @@
 #include "xdr/Stellar-ledger-entries.h"
 #include <list>
 
-// const uint64_t LIQUIDATION_INTERVAL = (60 * 5); // every hour
-const uint64_t LIQUIDATION_INTERVAL = (1); // every hour
+const uint64_t LIQUIDATION_INTERVAL = (60 * 5); // every 5 mins
+// const uint64_t LIQUIDATION_INTERVAL = (1); // every hour
 // TODO: change start time
 const stellar::int64 BASE_CONVERSION = 10000000; // 10^7
 const stellar::int64 DEPTH_THRESHOLD = 100 * BASE_CONVERSION;
@@ -349,7 +349,7 @@ LiquidationOpFrame::applyCreateLiquidationOffer(
         }
     }
 
-    if (hasQualifiedOffer || justCancel)
+    if (hasQualifiedOffer && !justCancel)
     {
         return true;
     }
@@ -379,6 +379,11 @@ LiquidationOpFrame::applyCreateLiquidationOffer(
 
             return false;
         }
+    }
+
+    if (justCancel)
+    {
+        return true;
     }
 
     auto op = createLiquidationOffer(accountid, selling, buying, price, amount);
