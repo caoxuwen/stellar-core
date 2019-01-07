@@ -86,80 +86,90 @@ canSellAtMostWithMargin(AbstractLedgerState& ls,
                         int64_t leverage)
 {
     // sell A buy B
+    // A debt increases
+    // B debt decreases
+
     // convert debt and collateral in terms of A
     int64_t debtA = trustLineA.getDebt();
     int64_t debtB = trustLineB.getDebt();
-    debtB = debtB > 0 ? bigDivide(abs(trustLineB.getDebt()), price.d, price.n,
-                                  ROUND_DOWN)
-                      : -bigDivide(abs(trustLineB.getDebt()), price.d, price.n,
-                                   ROUND_DOWN);
+    int64_t debtBinA =
+        debtB > 0 ? bigDivide(abs(debtB), price.d, price.n, ROUND_DOWN)
+                  : -bigDivide(abs(debtB), price.d, price.n, ROUND_DOWN);
 
-    int64_t debt = debtA > 0 ? debtA : 0;
-    debt += debtB > 0 ? debtB : 0;
+    int64_t debt = debtA + debtBinA;
 
-    int64_t collateral = 0;
-    // default same direction, eg. debtA == debtB == 0
-    bool sameDirection = true;
+    int64_t balanceA = trustLineA.getBalance();
+    int64_t balanceB = trustLineB.getBalance();
+    int64_t balanceBinA =
+        balanceB > 0 ? bigDivide(abs(balanceB), price.d, price.n, ROUND_DOWN)
+                     : -bigDivide(abs(balanceB), price.d, price.n, ROUND_DOWN);
 
-    if (trustLineA.isBaseAsset(ls))
-    {
-        // sell A -> short
-        if (debtB > 0)
-        {
-            // owe B -> long
-            sameDirection = false;
-        }
-    }
-    else if (trustLineB.isBaseAsset(ls))
-    {
-        // buy B -> long
-        if (debtA < 0)
-        {
-            // have asset in A -> short
-            sameDirection = false;
-        }
-    }
-    else
-    {
-        // should not get here
-        throw std::runtime_error("no base asset");
-    }
+    int64_t collateral = balanceA + balanceBinA;
+    return collateral * leverage > debtA ? collateral * leverage - debtA : 0;
 
-    if (sameDirection)
-    {
-        // same direction, compute available margin
+    /*
+        // default same direction, eg. debtA == debtB == 0
+        bool sameDirection = true;
+
         if (trustLineA.isBaseAsset(ls))
         {
-            int64_t balanceA = trustLineA.getAvailableBalance(header);
-
-            collateral = balanceA;
+            // sell A -> short
+            if (debtB > 0)
+            {
+                // owe B -> long
+                sameDirection = false;
+            }
         }
         else if (trustLineB.isBaseAsset(ls))
         {
-            int64_t balanceB = trustLineB.getAvailableBalance(header);
-
-            collateral = bigDivide(balanceB, price.d, price.n, ROUND_DOWN);
+            // buy B -> long
+            if (debtA < 0)
+            {
+                // have asset in A -> short
+                sameDirection = false;
+            }
         }
-
-        if (collateral * leverage >= debt)
+        else
         {
-            return collateral * leverage - debt;
+            // should not get here
+            throw std::runtime_error("no base asset");
         }
-    }
-    else
-    {
-        // opposite direction, can sell at most asset
-        if (debtA < 0)
-        {
-            return -debtA;
-        }
-        else if (debtB < 0)
-        {
-            return -debtB;
-        }
-    }
 
-    return 0;
+        if (sameDirection)
+        {
+            // same direction, compute available margin
+            if (trustLineA.isBaseAsset(ls))
+            {
+                int64_t balanceA = trustLineA.getAvailableBalance(header);
+
+                collateral = balanceA;
+            }
+            else if (trustLineB.isBaseAsset(ls))
+            {
+                int64_t balanceB = trustLineB.getAvailableBalance(header);
+
+                collateral = bigDivide(balanceB, price.d, price.n, ROUND_DOWN);
+            }
+
+            if (collateral * leverage >= debt)
+            {
+                return collateral * leverage - debt;
+            }
+        }
+        else
+        {
+            // opposite direction, can sell at most asset
+            if (debtA < 0)
+            {
+                return -debtA;
+            }
+            else if (debtB < 0)
+            {
+                return -debtB;
+            }
+        }
+
+        return 0; */
 }
 
 int64_t
@@ -169,6 +179,29 @@ canSellAtMostWithMargin(AbstractLedgerState& ls,
                         ConstTrustLineWrapper const& trustLineB, Price price,
                         int64_t leverage)
 {
+    // sell A buy B
+    // A debt increases
+    // B debt decreases
+
+    // convert debt and collateral in terms of A
+    int64_t debtA = trustLineA.getDebt();
+    int64_t debtB = trustLineB.getDebt();
+    int64_t debtBinA =
+        debtB > 0 ? bigDivide(abs(debtB), price.d, price.n, ROUND_DOWN)
+                  : -bigDivide(abs(debtB), price.d, price.n, ROUND_DOWN);
+
+    int64_t debt = debtA + debtBinA;
+
+    int64_t balanceA = trustLineA.getBalance();
+    int64_t balanceB = trustLineB.getBalance();
+    int64_t balanceBinA =
+        balanceB > 0 ? bigDivide(abs(balanceB), price.d, price.n, ROUND_DOWN)
+                     : -bigDivide(abs(balanceB), price.d, price.n, ROUND_DOWN);
+
+    int64_t collateral = balanceA + balanceBinA;
+    return collateral * leverage > debtA ? collateral * leverage - debtA : 0;
+
+    /*
     // sell A buy B
     // convert debt and collateral in terms of A
     int64_t debtA = trustLineA.getDebt();
@@ -243,7 +276,7 @@ canSellAtMostWithMargin(AbstractLedgerState& ls,
         }
     }
 
-    return 0;
+    return 0;*/
 }
 
 int64_t
@@ -787,7 +820,8 @@ adjustOffer(AbstractLedgerState& ls, LedgerStateHeader const& header,
                         canSellAtMost(header, account, wheat, wheatLine)});
     int64_t maxSheepReceive = canBuyAtMost(header, account, sheep, sheepLine);
     bool isPathPayment = wheatLine.isLiquidating() || sheepLine.isLiquidating();
-    oe.amount = adjustOffer(oe.price, maxWheatSend, maxSheepReceive, isPathPayment);
+    oe.amount =
+        adjustOffer(oe.price, maxWheatSend, maxSheepReceive, isPathPayment);
 }
 
 // The central property of adjustOffer is that it has no effect when applied to
@@ -916,7 +950,8 @@ adjustOffer(AbstractLedgerState& ls, LedgerStateHeader const& header,
 //                   = wheatReceive
 // so we conclude that the adjusted offer is not modified by adjustOffer.
 int64_t
-adjustOffer(Price const& price, int64_t maxWheatSend, int64_t maxSheepReceive, bool isPathPayment)
+adjustOffer(Price const& price, int64_t maxWheatSend, int64_t maxSheepReceive,
+            bool isPathPayment)
 {
     auto res = exchangeV10(price, maxWheatSend, INT64_MAX, INT64_MAX,
                            maxSheepReceive, isPathPayment);
