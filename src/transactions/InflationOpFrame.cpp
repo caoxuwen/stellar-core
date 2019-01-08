@@ -20,6 +20,7 @@
 #include <list>
 
 const uint64_t FUNDING_INTERVAL = (60 * 60);     // every hour
+const uint64_t NUM_INTERVAL = 24;     // 24 times a day
 const stellar::int64 BASE_CONVERSION = 10000000; // 10^7
 const stellar::int64 DEPTH_THRESHOLD = 100 * BASE_CONVERSION;
 const double DIFF_THRESHOLD = 0.005;
@@ -151,7 +152,7 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                     debt_total += tl.debt;
 
                     // negative because we used nonbase to compute
-                    int64 delta = -tl.debt * dratio / refPrice;
+                    int64 delta = -tl.debt * dratio / refPrice / NUM_INTERVAL;
                     CLOG(DEBUG, "Tx")
                         << KeyUtils::toStrKey(tl.accountID) << " " << delta;
 
